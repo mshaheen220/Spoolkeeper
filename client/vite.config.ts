@@ -26,7 +26,7 @@ export default defineConfig({
       "/api": {
         // Overridable so the dual-service Docker Compose dev setup can
         // point at the "app" container instead of localhost.
-        target: process.env.VITE_PROXY_TARGET ?? "http://localhost:3000",
+        target: process.env.VITE_PROXY_TARGET ?? "http://localhost:3003",
         changeOrigin: true,
       },
     },

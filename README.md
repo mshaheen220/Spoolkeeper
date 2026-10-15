@@ -22,7 +22,7 @@ From a phone on the same Wi-Fi, open `http://<this-mac's-LAN-IP>:8003`.
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | Express (tsx watch, :3000) + Vite (:5175, proxies `/api`) |
+| `npm run dev` | Express (tsx watch, :3003) + Vite (:5175, proxies `/api`) |
 | `npm run build` | Vite client build + `tsc` server build |
 | `npm start` | Run the built server (serves `client/dist` too) |
 | `npm run typecheck` / `npm run lint` | Both workspaces |

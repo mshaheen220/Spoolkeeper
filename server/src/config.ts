@@ -3,7 +3,8 @@ import path from "node:path";
 const root = path.resolve(__dirname, "..");
 
 export const config = {
-  port: Number(process.env.PORT ?? 3000),
+  // 3003 natively: chocolate-mold-factory already holds 3000 on this host.
+  port: Number(process.env.PORT ?? 3003),
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5175",
   // Where the SQLite database (and, later, profile backups) live. A volume
   // in Docker so inventory survives image rebuilds.
