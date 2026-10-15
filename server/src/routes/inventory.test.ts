@@ -60,6 +60,15 @@ describe("inventory API", () => {
     expect(match.body.product?.displayName).toBe("Sunlu PLA Wood Walnut");
   });
 
+  it("matches the same filament when line and color are split differently", async () => {
+    await request(app).post("/api/spools").send({ product: { vendor: "Sunlu", material: "PETG", colorName: "Transparent Red" } }).expect(201);
+    const match = await request(app)
+      .get("/api/products/match")
+      .query({ vendor: "SUNLU", material: "PETG", line: "Transparent", colorName: "Red" })
+      .expect(200);
+    expect(match.body.product?.displayName).toBe("Sunlu PETG Transparent Red");
+  });
+
   it("validates input", async () => {
     const res = await request(app).post("/api/spools").send({ price: 3 }).expect(400);
     expect(res.body.error).toBe("Invalid request");

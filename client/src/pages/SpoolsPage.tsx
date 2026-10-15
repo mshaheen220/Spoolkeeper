@@ -25,9 +25,14 @@ export function SpoolsPage() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">Spools</h1>
-        <Link to="/spools/new" className="btn-primary">
-          <span aria-hidden>＋</span> Add spool
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/import" className="btn" title="Import from OrcaSlicer">
+            <span aria-hidden>⇣</span> Import
+          </Link>
+          <Link to="/spools/new" className="btn-primary">
+            <span aria-hidden>＋</span> Add spool
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

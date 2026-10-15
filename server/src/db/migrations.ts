@@ -90,4 +90,18 @@ export const MIGRATIONS: string[] = [
     value  TEXT NOT NULL                    -- JSON
   );
   `,
+
+  /* 2: OrcaSlicer profiles seen at import - untrusted starting values for calibration */ `
+  CREATE TABLE imported_profiles (
+    id            INTEGER PRIMARY KEY,
+    product_id    INTEGER NOT NULL REFERENCES products(id),
+    file_name     TEXT NOT NULL UNIQUE,      -- e.g. "Sunlu - Walnut Wood.json"
+    profile_name  TEXT NOT NULL,
+    inherits      TEXT,
+    generated_by  TEXT,                      -- "spoolman2slicer" when its _comment says so
+    settings      TEXT NOT NULL,             -- JSON of the slicer keys the file set
+    imported_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+  CREATE INDEX imported_profiles_product ON imported_profiles(product_id);
+  `,
 ];

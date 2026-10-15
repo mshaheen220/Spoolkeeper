@@ -167,7 +167,13 @@ export function findMatchingProduct(input: Pick<ProductInput, "vendor" | "materi
          AND IFNULL(p.line, '') = ? COLLATE NOCASE AND IFNULL(p.color_name, '') = ? COLLATE NOCASE`,
     )
     .get(input.vendor.trim(), input.material, input.line ?? "", input.colorName ?? "") as Row | undefined;
-  return r ? rowToProduct(r) : null;
+  if (r) return rowToProduct(r);
+  // Same filament, split differently: line "Transparent" + color "Red" vs. color "Transparent Red".
+  const wanted = productDisplayName({ vendorName: input.vendor.trim(), material: input.material, line: input.line, colorName: input.colorName });
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9+]/g, "");
+  const rows = getDb().prepare(`${PRODUCT_SELECT} WHERE v.name = ? COLLATE NOCASE AND p.material = ? COLLATE NOCASE`).all(input.vendor.trim(), input.material) as Row[];
+  const hit = rows.map(rowToProduct).find((p) => key(p.displayName) === key(wanted));
+  return hit ?? null;
 }
 
 export function createProduct(input: ProductInput): Product {
@@ -328,4 +334,28 @@ export function setSetting(key: string, value: unknown) {
   getDb()
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .run(key, JSON.stringify(value));
+}
+
+// -------------------------------------------------------- imported profiles
+
+export interface ImportedProfile {
+  fileName: string;
+  profileName: string;
+  inherits: string | null;
+  generatedBy: string | null;
+  settings: Record<string, string>;
+  importedAt: string;
+}
+
+/** OrcaSlicer profiles imported for a product: untrusted starting values for calibration. */
+export function listImportedProfiles(productId: number): ImportedProfile[] {
+  const rows = getDb().prepare("SELECT * FROM imported_profiles WHERE product_id = ? ORDER BY file_name").all(productId) as Row[];
+  return rows.map((r) => ({
+    fileName: r.file_name as string,
+    profileName: r.profile_name as string,
+    inherits: (r.inherits as string) ?? null,
+    generatedBy: (r.generated_by as string) ?? null,
+    settings: JSON.parse(r.settings as string) as Record<string, string>,
+    importedAt: r.imported_at as string,
+  }));
 }

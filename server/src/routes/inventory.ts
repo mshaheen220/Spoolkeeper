@@ -8,6 +8,7 @@ import {
   getProduct,
   getSources,
   getSpool,
+  listImportedProfiles,
   listProducts,
   listSpools,
   listSpoolsForProduct,
@@ -98,6 +99,7 @@ inventoryRouter.get("/spools/:id", (req, res) => {
     spool,
     sources: { product: getSources("product", spool.product.id), spool: getSources("spool", id) },
     siblings: listSpoolsForProduct(spool.product.id).filter((s) => s.id !== id),
+    imported: listImportedProfiles(spool.product.id),
   });
 });
 

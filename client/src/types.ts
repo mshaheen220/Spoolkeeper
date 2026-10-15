@@ -61,10 +61,20 @@ export interface FieldSource {
   capturedAt: string;
 }
 
+export interface ImportedProfile {
+  fileName: string;
+  profileName: string;
+  inherits: string | null;
+  generatedBy: string | null;
+  settings: Record<string, string>;
+  importedAt: string;
+}
+
 export interface SpoolDetail {
   spool: Spool;
   sources: { product: Record<string, FieldSource>; spool: Record<string, FieldSource> };
   siblings: Spool[];
+  imported: ImportedProfile[];
 }
 
 export const SOURCE_LABELS: Record<Source, string> = {
