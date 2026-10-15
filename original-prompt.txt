@@ -1,0 +1,79 @@
+# New app: Spoolkeeper — new-filament intake, per-spool calibration, OrcaSlicer profile publishing
+
+Spoolkeeper is the next app in my GitHub app family (github.com/mshaheen220), alongside platesmith, GripTab, chocolate-mold-factory, and svg-stacker. The repo already exists at https://github.com/mshaheen220/Spoolkeeper and is cloned and open in this workspace. Build here; don't create a new repo. Sibling repos may need to be cloned separately (outside this folder) to read their conventions.
+
+**Start in plan mode. Don't write code until I've approved a plan.**
+
+## Step 1 — Learn my app system before designing anything
+Clone or read at least two or three of my sibling repos and write down the shared conventions you find. Match them exactly: stack, folder layout, scripts, Docker setup, and coding style. In particular:
+- **Random tips display.** Find how tips are stored, rotated, and rendered. Then find the **API endpoint that exposes them** and match its route shape and response format exactly. This app's tips should be about filament, drying, calibration, and slicer settings.
+- **Themes.** Use the same dark/light/system theme switcher and the same persistence approach.
+- **Version.** The version shown in the UI is read from `package.json`. Bump it on **every** change: semver patch for fixes, minor for features. Use the same mechanism the siblings use to get it into the UI.
+- **Docs.** Two READMEs, one for devs and one for users, named and organized like the siblings.
+- **Repo hygiene.** A `.gitignore`, and a `.vscode/settings.json` with Peacock colors plus `workbench.colorCustomizations`. Pick a color combo that **none** of the sibling repos use.
+- **UI.** React + TypeScript, styled with the same CSS framework or component library the siblings use. Make it mobile-friendly, since I'll be at the printer with my phone. Add ARIA where it makes sense.
+- **Runtime.** Dockerized, like the others.
+
+If the sibling repos disagree with each other on something, list the differences and ask me which to follow.
+
+## Step 2 — What the app does
+
+### A. New spool intake (every time I bring home a new filament)
+1. A quick form: brand, material (PLA, PETG, Silk PLA, Wood PLA, etc.), color name and hex, diameter, net weight, spool weight if known, price, where I bought it, and an optional product URL.
+2. **Auto-enrich** with whatever can be found:
+   - SpoolmanDB (the community filament database Spoolman uses): manufacturer, density, spool weight, and recommended temps.
+   - The product URL I paste, if any: the manufacturer's recommended nozzle and bed temps, plus any printing-speed or drying guidance.
+   - Show every enriched field with its source. Let me accept or override each one. Never silently trust scraped values.
+3. **Spoolman integration.** I already run Spoolman on my home server, TheForge. Don't replace it. Use its REST API to create or find the vendor and filament and create the spool, so Spoolman stays the inventory system. Spoolsmith is the **settings and calibration brain** on top of it. Make the Spoolman base URL configurable, and confirm the API shape against the actual instance or its docs.
+4. Optionally generate a printable spool label (name, material, temps, spool ID, QR code linking to the spool's page in this app). I'm planning printed label holders that span the width of each spool, so make the label dimensions configurable.
+
+### B. Per-spool calibration workflow (the main point)
+A guided, step-by-step "calibrate this spool" wizard I can follow at the printer. For each step it:
+- tells me exactly which OrcaSlicer built-in calibration to run, with what ranges and starting values for this material. Verify the calibration menu and options against my installed OrcaSlicer version; don't assume.
+- gives me a simple input for what I observed: the best block number, the best line, the tower height where stringing stopped, and so on.
+- **computes the resulting value** (for example, flow ratio from the Pass 1 and Pass 2 offsets) and shows the math.
+
+Suggested order (adjust if you have good reason, and tell me why):
+1. Temperature tower: best temperature for layer adhesion with no stringing.
+2. Max volumetric speed.
+3. Flow ratio, Pass 1 then Pass 2.
+4. Pressure advance. My printer runs Marlin, so this is Linear Advance K.
+5. Retraction: length and speed. Also record z-hop type and wipe distance.
+6. Optional: cooling and fan notes, and bed temperature or first-layer notes.
+
+Store results **per spool**, with history: date, which test, raw observation, computed value, and notes. Show a summary card per spool comparing its tuned values against the manufacturer defaults and against other spools of the same filament product.
+
+### C. Publish to OrcaSlicer
+- Generate an OrcaSlicer **user filament profile** (the JSON, plus whatever metadata files OrcaSlicer expects) with all the tuned values filled in: temperatures, flow ratio, pressure advance enabled with the value, retraction, z-hop, wipe, max volumetric speed, cooling, cost, and density.
+- Inherit from the correct base or system profile for the material, and set compatibility so it attaches to my printer profile **"TheHammer 0.4"**. Read my actual OrcaSlicer config to get exact names and paths. On macOS it's under `~/Library/Application Support/OrcaSlicer/`.
+- Naming must be clean and orderly, for example `Brand Material Color (Spool #ID)`. Ask me whether tuned values should be per-spool profiles, a per-product profile with spool variants, or my choice each time. Recommend one.
+- **Safety:**
+  - Back up any existing profile before writing.
+  - Show a diff of what will change.
+  - Detect whether OrcaSlicer is running and tell me to restart it.
+  - **Never overwrite a field I've hand-tuned** unless I explicitly approve it in the diff.
+- Also offer a plain "download profile JSON" option for manual import.
+
+### D. Context to build in
+- My printer: Ender-3 V2 with a direct-drive extruder, a 0.4 brass nozzle, a CR Touch, and a PEI plate (textured and smooth sides).
+- **Linear Advance may not be enabled in my Marlin firmware.** Add a preflight check or instructions: send `M900` / `M503` and look for a K value. If it isn't supported, say so clearly and skip or flag the PA step rather than producing a value that does nothing.
+- Known-good reference: a Sunlu Walnut Wood PLA spool at 210°C stopped stringing with retraction 1.2 mm, Slope Lift z-hop, and wipe distance 0.8 mm. Use this as a sanity-check example, not as a default for everything.
+- I'm still learning. My existing filament profiles are mostly defaults or guesses. Treat them as untrusted starting points, and explain *why* each setting matters in short inline help.
+- **Existing problem to solve:** my current spool-sync tool (sync-spools / Spoolio) overwrites my customized OrcaSlicer filament settings, and its no-overwrite flag gets ignored. This app should become the source of truth for tuned values. Its publish step must be **non-destructive and idempotent**. Re-running it after a Spoolman sync should restore my tuned values, not lose them. Look at how sync-spools writes profiles, if it's on this machine, so the two don't fight. Propose whether I should keep using it.
+
+## Step 3 — Architecture questions to answer in your plan
+- Where it runs. OrcaSlicer lives on my MacBook, but Spoolman runs on TheForge. Should the app run locally in Docker with a volume mount to the OrcaSlicer user directory, or run on TheForge with a small local publish step or CLI? Lay out the tradeoffs and recommend one.
+- Storage: SQLite or whatever the siblings use.
+- Backend language: match the siblings.
+- An API surface beyond tips, for example `GET /api/spools/:id/profile`, so other tools of mine can pull tuned values later.
+
+## Deliverables for the plan
+1. The conventions you found in the sibling repos.
+2. The data model: vendor, filament product, spool, calibration run, published profile.
+3. Screens and the user flow, mobile-first.
+4. Enrichment sources and their fallbacks.
+5. The OrcaSlicer profile mapping table: our field → OrcaSlicer key.
+6. Risks and open questions for me.
+7. A phased build order. Phase 1 = intake + Spoolman + manual profile export. Phase 2 = calibration wizard. Phase 3 = direct OrcaSlicer publish + labels.
+
+Then build phase 1 in this repo. Commit in logical chunks with clear messages, bump the package.json version with each change, and push to origin when phase 1 is working.

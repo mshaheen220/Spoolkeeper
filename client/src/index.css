@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* Day-theme overrides for the few places a mirrored ramp isn't enough. */
+@custom-variant day (&:where([data-theme="day"], [data-theme="day"] *));
+
+/*
+ * One "ink" ramp (indigo-tinted slate) drives every surface/text color.
+ * Night is the default; day mirrors the ramp (50<->950, ...) so
+ * bg-ink-950 / text-ink-100 keep their background-vs-foreground
+ * relationship in both themes without per-usage dark: variants.
+ * Accent is spool amber.
+ */
+@theme {
+  --color-ink-50: #f3f4fb;
+  --color-ink-100: #e3e6f5;
+  --color-ink-200: #c4c9e6;
+  --color-ink-300: #9ea5cf;
+  --color-ink-400: #7880b3;
+  --color-ink-500: #5a6194;
+  --color-ink-600: #444a76;
+  --color-ink-700: #33385c;
+  --color-ink-800: #232741;
+  --color-ink-900: #181b30;
+  --color-ink-950: #0f1122;
+  --color-accent-300: #f3cd73;
+  --color-accent-400: #e9b443;
+  --color-accent-500: #e0a526;
+  --color-accent-600: #b9821a;
+  --animate-fade-in: fade-in 0.4s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+  --color-ink-50: #0f1122;
+  --color-ink-100: #181b30;
+  --color-ink-200: #232741;
+  --color-ink-300: #33385c;
+  --color-ink-400: #444a76;
+  --color-ink-500: #5a6194;
+  --color-ink-600: #7880b3;
+  --color-ink-700: #c4c9e6;
+  --color-ink-800: #e3e6f5;
+  --color-ink-900: #f3f4fb;
+  --color-ink-950: #fbfbfe;
+  --color-accent-300: #9a6a10;
+  --color-accent-400: #a87414;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-ink-100 antialiased;
+}
+
+/* Shared form-control look - used by every input/select in the app. */
+@layer components {
+  .field {
+    @apply w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-base text-ink-100 placeholder:text-ink-500 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none sm:text-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-sm font-medium text-ink-200 transition-colors hover:border-ink-500 hover:text-ink-50 disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md bg-accent-500 px-3 py-2 text-sm font-semibold text-ink-950 transition-colors hover:bg-accent-400 disabled:opacity-50 day:text-white;
+  }
+  .card {
+    @apply rounded-lg border border-ink-800 bg-ink-900/60 p-4;
+  }
+}

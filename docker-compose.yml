@@ -1,0 +1,39 @@
+# Production / single-container deployment.
+# Builds the Vite frontend and Express backend into one image and serves
+# both from port 8003.
+#
+#   docker compose up --build -d
+#
+# For a hot-reloading dual-service dev setup, layer the dev override:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# 8003 because 3000/8001/8002/8181 are already taken by the other workshop
+# apps on this host - see Mashghal's src/config/apps.js for the port map.
+# Reach it from a phone on the same Wi-Fi at http://<this-mac's-LAN-IP>:8003.
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: spoolkeeper:latest
+    ports:
+      - "8003:3000"
+    environment:
+      - PORT=3000
+      - DATA_DIR=/data
+      - ORCA_USER_DIR=/orca
+    volumes:
+      # SQLite inventory + enrichment cache. A host folder (not a named
+      # volume) so it's easy to back up alongside the repo checkout.
+      - ./data:/data
+      # OrcaSlicer's user presets. Read-only in Phase 1: Spoolkeeper only
+      # imports from here and never writes until the Phase 3 publish step.
+      - "${ORCA_USER_DIR_HOST:-${HOME}/Library/Application Support/OrcaSlicer/user/default}:/orca:ro"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

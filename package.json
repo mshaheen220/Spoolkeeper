@@ -1,0 +1,27 @@
+{
+  "name": "spoolkeeper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "New-filament intake, per-spool calibration, and non-destructive OrcaSlicer profile publishing for a home 3D-printing workshop.",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=server & npm run dev --workspace=client & wait",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspace=client && npm run build --workspace=server",
+    "start": "npm run start --workspace=server",
+    "lint": "npm run lint --workspace=client && npm run lint --workspace=server",
+    "typecheck": "npm run typecheck --workspace=client && npm run typecheck --workspace=server",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}

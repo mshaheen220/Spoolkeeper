@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & local secrets
+.env
+.env.local
+.env.*.local
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data: the SQLite inventory, enrichment cache and profile backups
+# are personal state, not source.
+/data/*
+!/data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo

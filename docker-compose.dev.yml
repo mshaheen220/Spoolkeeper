@@ -1,0 +1,42 @@
+# Dual-service development override: a hot-reloading Express backend and a
+# Vite dev server with HMR, wired together over the compose network.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Frontend: http://localhost:5175 (proxies /api to the backend)
+# Backend:  http://localhost:8003
+services:
+  app:
+    build:
+      target: dev
+    image: spoolkeeper:dev
+    environment:
+      - PORT=3000
+      - DATA_DIR=/data
+      - ORCA_USER_DIR=/orca
+      - CLIENT_ORIGIN=http://localhost:5175
+    volumes:
+      - ./server/src:/app/server/src
+      - ./server/tsconfig.json:/app/server/tsconfig.json
+    healthcheck:
+      disable: true
+
+  client:
+    build:
+      context: .
+      target: client-dev
+    ports:
+      - "5175:5175"
+    environment:
+      - VITE_PROXY_TARGET=http://app:3000
+    volumes:
+      - ./client/src:/app/client/src
+      - ./client/public:/app/client/public
+      - ./client/index.html:/app/client/index.html
+      - ./client/vite.config.ts:/app/client/vite.config.ts
+      - ./client/tsconfig.json:/app/client/tsconfig.json
+      - ./client/tsconfig.app.json:/app/client/tsconfig.app.json
+      - ./client/tsconfig.node.json:/app/client/tsconfig.node.json
+      - ./package.json:/app/package.json
+    depends_on:
+      - app
