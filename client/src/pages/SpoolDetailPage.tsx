@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { fetchSpool, updateSpool } from "../api/inventory";
+import { ProfileCard } from "../components/ProfileCard";
 import { SourceBadge } from "../components/SourceBadge";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
@@ -134,6 +135,8 @@ export function SpoolDetailPage() {
           <Row label="Notes" value={spool.notes} />
         </dl>
       </section>
+
+      <ProfileCard spoolId={spool.id} />
 
       {imported.length > 0 && (
         <section className="card space-y-2" aria-labelledby="imported-heading">

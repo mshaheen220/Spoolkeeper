@@ -11,7 +11,10 @@ export function Header() {
           <span className="text-base font-semibold tracking-tight">Spoolkeeper</span>
           <span className="text-[10px] font-normal text-ink-500">v{__APP_VERSION__}</span>
         </Link>
-        <div className="ml-auto sm:order-last">
+        <div className="ml-auto flex items-center gap-2 sm:order-last">
+          <Link to="/settings" aria-label="Settings" title="Settings" className="rounded-md border border-ink-700 bg-ink-900/60 px-2 py-1 text-sm text-ink-300 hover:text-ink-100">
+            <span aria-hidden>⚙️</span>
+          </Link>
           <ThemeSwitcher />
         </div>
         {/* Full width on its own row on phones; shares the header row on wider screens. */}
