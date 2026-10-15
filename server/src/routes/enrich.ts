@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { enrich } from "../lib/enrich";
+import { enrich, lookupGtin } from "../lib/enrich";
 import { clearEnrichCache } from "../lib/enrich/fetch";
+import { readProductPage } from "../lib/enrich/productPage";
 import { asyncHandler } from "../lib/http";
 import { MATERIALS } from "../lib/materials";
 
@@ -22,6 +23,23 @@ enrichRouter.get(
   asyncHandler(async (req, res) => {
     const q = searchQuery.parse(req.query);
     res.json(await enrich({ ...q, line: q.line || null, colorName: q.colorName || null }));
+  }),
+);
+
+/** Barcode (GTIN/EAN/UPC) -> product identity from the Open Filament Database. */
+enrichRouter.get(
+  "/enrich/gtin/:code",
+  asyncHandler(async (req, res) => {
+    res.json({ matches: await lookupGtin(String(req.params.code)) });
+  }),
+);
+
+/** Read a pasted product page for temps, speed, drying and density. Suggestions only. */
+enrichRouter.post(
+  "/enrich/url",
+  asyncHandler(async (req, res) => {
+    const { url } = z.object({ url: z.string().trim().min(1).max(2000) }).parse(req.body);
+    res.json({ candidate: await readProductPage(url) });
   }),
 );
 

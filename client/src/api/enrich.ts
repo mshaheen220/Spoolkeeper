@@ -47,3 +47,20 @@ export function searchEnrichment(q: {
 export const fetchMaterials = () => request<{ materials: MaterialDefaults[] }>("/api/materials").then((b) => b.materials);
 
 export const refreshEnrichment = () => request<{ ok: boolean }>("/api/enrich/refresh", { method: "POST" });
+
+export interface GtinMatch {
+  gtin: string;
+  vendor: string;
+  material: string;
+  line: string | null;
+  colorName: string;
+  diameterMm: number | null;
+  netWeightG: number | null;
+  candidate: Candidate;
+}
+
+export const lookupGtin = (code: string) =>
+  request<{ matches: GtinMatch[] }>(`/api/enrich/gtin/${encodeURIComponent(code)}`).then((b) => b.matches);
+
+export const readProductPage = (url: string) =>
+  request<{ candidate: Candidate }>("/api/enrich/url", { method: "POST", body: JSON.stringify({ url }) }).then((b) => b.candidate);

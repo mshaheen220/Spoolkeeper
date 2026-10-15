@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { fetchMaterials, searchEnrichment, type EnrichResult, type Suggestion } from "../api/enrich";
+import {
+  fetchMaterials,
+  lookupGtin,
+  readProductPage,
+  searchEnrichment,
+  type Candidate,
+  type EnrichResult,
+  type GtinMatch,
+  type Suggestion,
+} from "../api/enrich";
 import { createSpools, fetchVendors, findProductMatch, type SourceMap } from "../api/inventory";
 import { FormField } from "../components/FormField";
 import { SuggestionsPanel } from "../components/intake/SuggestionsPanel";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
+import { decodeBarcode } from "../lib/barcode";
 import { DETAIL_FIELDS, ID_FIELDS, LINE_SUGGESTIONS, MATERIAL_PRESETS, type ProductFieldKey } from "../lib/productFields";
 import { agreedFills, defaultSelection, optionsByField, type Selection } from "../lib/suggestions";
 import type { Product, Source } from "../types";
@@ -34,8 +44,15 @@ export function IntakePage() {
   const [prov, setProv] = useState<Provenance>(INITIAL_PROVENANCE);
   const [purchase, setPurchase] = useState({ quantity: "1", price: "", store: "", purchasedOn: today(), lot: "", notes: "" });
 
-  const [result, setResult] = useState<EnrichResult | null>(null);
+  const [searchResult, setSearchResult] = useState<EnrichResult | null>(null);
+  // Candidates from a scanned barcode or a read product page; kept across re-lookups.
+  const [extras, setExtras] = useState<Candidate[]>([]);
   const [selection, setSelection] = useState<Selection>({});
+  const [gtinInput, setGtinInput] = useState("");
+  const [gtinMatches, setGtinMatches] = useState<GtinMatch[] | null>(null);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [pageStatus, setPageStatus] = useState<string | null>(null);
+  const [readingPage, setReadingPage] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
 
@@ -63,6 +80,12 @@ export function IntakePage() {
   }, [vendor, material, line, colorName]);
   const activeMatch = vendor.trim() && material.trim() ? match : null;
 
+  const result = useMemo<EnrichResult | null>(() => {
+    if (!searchResult && extras.length === 0) return null;
+    const searched = (searchResult?.candidates ?? []).filter((c) => !extras.some((e) => e.source === c.source && e.id === c.id));
+    return { candidates: [...extras, ...searched], errors: searchResult?.errors ?? [] };
+  }, [searchResult, extras]);
+
   const options = useMemo(() => optionsByField(result?.candidates ?? [], selection), [result, selection]);
   // Reference ids ride along with accepted values; only count the visible fields.
   const fills = useMemo(
@@ -70,17 +93,96 @@ export function IntakePage() {
     [options, values],
   );
 
-  const lookup = async () => {
+  /** Add a barcode/product-page candidate and select it for its source. */
+  const addExtra = (c: Candidate) => {
+    setExtras((list) => [...list.filter((e) => e.source !== c.source), c]);
+    setSelection((sel) => ({ ...sel, [c.source]: c.id }));
+  };
+
+  const lookup = async (q = { vendor, material, line, colorName, diameterMm: values.diameterMm, netWeightG: values.netWeightG }) => {
     setLookingUp(true);
     setLookupError(null);
     try {
-      const r = await searchEnrichment({ vendor, material, line, colorName, diameterMm: values.diameterMm, netWeightG: values.netWeightG });
-      setResult(r);
-      setSelection(defaultSelection(r.candidates));
+      const r = await searchEnrichment(q);
+      setSearchResult(r);
+      // Barcode/page picks stay selected; everything else defaults to its best match.
+      setSelection((sel) => {
+        const next = defaultSelection([...extras, ...r.candidates]);
+        for (const e of extras) next[e.source] = sel[e.source] ?? e.id;
+        return next;
+      });
     } catch (e) {
       setLookupError(e instanceof Error ? e.message : String(e));
     } finally {
       setLookingUp(false);
+    }
+  };
+
+  /** A barcode match fills the identity fields (it's the product itself), then looks up the rest. */
+  const applyGtinMatch = (m: GtinMatch) => {
+    setGtinMatches(null);
+    const ref = m.candidate.sourceRef;
+    set("vendor", m.vendor, "ofd", ref);
+    set("material", m.material.toUpperCase(), "ofd", ref);
+    set("line", m.line ?? "", "ofd", ref);
+    set("colorName", m.colorName, "ofd", ref);
+    if (m.diameterMm) set("diameterMm", String(m.diameterMm), "ofd", ref);
+    if (m.netWeightG) set("netWeightG", String(m.netWeightG), "ofd", ref);
+    set("gtin", m.gtin, "ofd", ref);
+    setExtras((list) => [...list.filter((e) => e.source !== "ofd"), m.candidate]);
+    setSelection((sel) => ({ ...sel, ofd: m.candidate.id }));
+    void lookup({
+      vendor: m.vendor,
+      material: m.material,
+      line: m.line ?? "",
+      colorName: m.colorName,
+      diameterMm: String(m.diameterMm ?? values.diameterMm),
+      netWeightG: String(m.netWeightG ?? values.netWeightG),
+    });
+  };
+
+  const findGtin = async (code: string) => {
+    const digits = code.replace(/\D/g, "");
+    setGtinInput(digits);
+    setScanStatus("Looking up barcode…");
+    try {
+      const matches = await lookupGtin(digits);
+      if (matches.length === 0) {
+        set("gtin", digits);
+        setScanStatus(`Barcode ${digits} isn't in the Open Filament Database yet. Saved it on the form; fill in the rest from the box.`);
+      } else if (matches.length === 1) {
+        setScanStatus(`Found ${matches[0].candidate.title}.`);
+        applyGtinMatch(matches[0]);
+      } else {
+        setScanStatus("That barcode matches several products. Pick one:");
+        setGtinMatches(matches);
+      }
+    } catch (e) {
+      setScanStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const scanPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setScanStatus("Reading barcode…");
+    const code = await decodeBarcode(file);
+    if (code) await findGtin(code);
+    else setScanStatus("Couldn't read a barcode in that photo. Try closer, flatter and in focus, or type the number.");
+  };
+
+  const readPage = async () => {
+    const url = values.productUrl?.trim();
+    if (!url) return;
+    setReadingPage(true);
+    setPageStatus(null);
+    try {
+      const c = await readProductPage(url);
+      addExtra(c);
+      setPageStatus(c.suggestions.length ? `Read ${c.suggestions.length} value(s) from the page; review them below.` : "The page loaded, but no temperatures or settings could be read from it.");
+    } catch (e) {
+      setPageStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReadingPage(false);
     }
   };
 
@@ -147,6 +249,48 @@ export function IntakePage() {
         <h2 id="identity-heading" className="font-semibold">
           What is it?
         </h2>
+        <div className="space-y-2 rounded-md border border-dashed border-ink-700 p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="btn-primary cursor-pointer">
+              <span aria-hidden>📷</span> Scan barcode
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  void scanPhoto(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <div className="flex min-w-0 flex-1 basis-40 gap-2">
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Barcode number</span>
+                <input className="field" inputMode="numeric" placeholder="or type the barcode" value={gtinInput} onChange={(e) => setGtinInput(e.target.value)} />
+              </label>
+              <button type="button" className="btn" disabled={gtinInput.replace(/\D/g, "").length < 8} onClick={() => void findGtin(gtinInput)}>
+                Find
+              </button>
+            </div>
+          </div>
+          {scanStatus && (
+            <p role="status" className="text-xs text-ink-300">
+              {scanStatus}
+            </p>
+          )}
+          {gtinMatches && (
+            <ul className="space-y-1">
+              {gtinMatches.map((m) => (
+                <li key={m.candidate.id}>
+                  <button type="button" className="btn w-full justify-start text-left" onClick={() => applyGtinMatch(m)}>
+                    {m.candidate.title} · {m.netWeightG} g · {m.diameterMm} mm
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <FormField label="Brand" value={values.vendor} onChange={(v) => set("vendor", v)} list="vendor-list" required placeholder="Sunlu" />
         <datalist id="vendor-list">
           {vendors?.map((v) => (
@@ -209,7 +353,27 @@ export function IntakePage() {
           <FormField label="Net weight" type="number" unit="g" value={values.netWeightG} onChange={(v) => set("netWeightG", v)} provenance={prov.netWeightG} />
         </div>
 
-        <button type="button" className="btn w-full" onClick={lookup} disabled={!identityReady || lookingUp}>
+        <div className="flex items-end gap-2">
+          <FormField
+            className="min-w-0 flex-1"
+            label="Product page URL"
+            type="url"
+            value={values.productUrl ?? ""}
+            onChange={(v) => set("productUrl", v)}
+            provenance={prov.productUrl}
+            placeholder="https://…"
+          />
+          <button type="button" className="btn shrink-0" onClick={readPage} disabled={!values.productUrl?.trim() || readingPage}>
+            {readingPage ? "Reading…" : "Read page"}
+          </button>
+        </div>
+        {pageStatus && (
+          <p role="status" className="text-xs text-ink-300">
+            {pageStatus}
+          </p>
+        )}
+
+        <button type="button" className="btn w-full" onClick={() => void lookup()} disabled={!identityReady || lookingUp}>
           {lookingUp ? "Looking up…" : "🔎 Look up filament data"}
         </button>
         {lookupError && (
@@ -255,7 +419,7 @@ export function IntakePage() {
               Filament details
             </h2>
             <div className="grid grid-cols-2 gap-3">
-              {DETAIL_FIELDS.filter((f) => !["colorName", "colorHex", "diameterMm", "netWeightG"].includes(f.key)).map((f) => (
+              {DETAIL_FIELDS.filter((f) => !["colorName", "colorHex", "diameterMm", "netWeightG", "productUrl"].includes(f.key)).map((f) => (
                 <FormField
                   key={f.key}
                   label={f.label}

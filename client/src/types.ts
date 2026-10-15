@@ -76,3 +76,14 @@ export const SOURCE_LABELS: Record<Source, string> = {
   orca_import: "OrcaSlicer import",
   default: "Default",
 };
+
+/** Compact labels for tight spots (form field headers). */
+export const SOURCE_SHORT_LABELS: Record<Source, string> = {
+  manual: "You",
+  ofd: "OFD",
+  spoolmandb: "SpoolmanDB",
+  spoolz: "spoolz",
+  product_url: "Page",
+  orca_import: "Orca",
+  default: "Default",
+};

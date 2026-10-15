@@ -26,11 +26,11 @@ export function FormField({ label, value, onChange, type = "text", unit, step, h
   return (
     <div className={className}>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-medium text-ink-200">
+        <label htmlFor={id} className="min-w-0 truncate text-sm font-medium text-ink-200">
           {label}
           {required && <span className="text-accent-400"> *</span>}
         </label>
-        {provenance && value !== "" && <SourceBadge source={provenance.source} sourceRef={provenance.sourceRef} />}
+        {provenance && value !== "" && <SourceBadge compact source={provenance.source} sourceRef={provenance.sourceRef} />}
       </div>
       <div className="flex items-center gap-2">
         {type === "color" && (
