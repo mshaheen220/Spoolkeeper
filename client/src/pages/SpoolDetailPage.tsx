@@ -104,6 +104,7 @@ export function SpoolDetailPage() {
                 </a>
               ) : null
             }
+            sources={[ps.productUrl]}
           />
           <Row
             label="Datasheet"
@@ -114,6 +115,7 @@ export function SpoolDetailPage() {
                 </a>
               ) : null
             }
+            sources={[ps.datasheetUrl]}
           />
           <Row label="Barcode" value={p.gtin} sources={[ps.gtin]} />
         </dl>

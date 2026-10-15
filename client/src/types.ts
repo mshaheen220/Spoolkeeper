@@ -74,5 +74,5 @@ export const SOURCE_LABELS: Record<Source, string> = {
   spoolz: "spoolz",
   product_url: "Product page",
   orca_import: "OrcaSlicer import",
-  default: "Material default",
+  default: "Default",
 };

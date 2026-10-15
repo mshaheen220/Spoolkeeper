@@ -96,9 +96,13 @@ const SPOOL_COLUMNS = {
 
 /** "Sunlu PLA Wood Walnut" - the human name used in lists, labels and profile names. */
 export function productDisplayName(p: { vendorName: string; material: string; line?: string | null; colorName?: string | null }) {
-  const parts = [p.vendorName, p.material];
-  // Skip a line that just repeats the material ("PLA" line on a PLA product).
-  if (p.line && p.line.toLowerCase() !== p.material.toLowerCase()) parts.push(p.line);
+  const parts = [p.vendorName];
+  // A line that already names the material ("PLA+", "PLA Wood") replaces
+  // it, so names read "Sunlu PLA+ Black" rather than "Sunlu PLA PLA+ Black".
+  const line = p.line?.trim();
+  const lineHasMaterial = !!line && line.toLowerCase().split(/[^a-z0-9+-]+/).some((w) => w.startsWith(p.material.toLowerCase()));
+  if (line && lineHasMaterial) parts.push(line);
+  else parts.push(p.material, ...(line ? [line] : []));
   if (p.colorName) parts.push(p.colorName);
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
