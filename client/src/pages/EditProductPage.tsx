@@ -64,7 +64,8 @@ function EditForm({ product, sources }: { product: Product; sources: Record<stri
       <div>
         <h1 className="text-lg font-semibold">Edit filament</h1>
         <p className="text-sm text-ink-400">
-          {product.displayName} · changes apply to all {product.spoolCount} spool{product.spoolCount === 1 ? "" : "s"} of it.
+          {product.displayName} ·{" "}
+          {product.spoolCount === 1 ? "changes apply to its spool." : `changes apply to all ${product.spoolCount} spools of it.`}
         </p>
       </div>
 

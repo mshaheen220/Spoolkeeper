@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { fetchMaterials } from "../../api/enrich";
-import { fetchVendors } from "../../api/inventory";
+import { fetchProducts, fetchVendors } from "../../api/inventory";
 import { useAsync } from "../../hooks/useAsync";
 import type { ProductForm } from "../../hooks/useProductForm";
 import {
@@ -13,6 +13,7 @@ import {
   SHORE_HELP,
   type ProductFieldKey,
 } from "../../lib/productFields";
+import { ComboField } from "../ComboField";
 import { FormField } from "../FormField";
 import { SuggestionsPanel } from "../intake/SuggestionsPanel";
 import { SourceBadge } from "../SourceBadge";
@@ -23,14 +24,23 @@ export function IdentityFields({ form }: { form: ProductForm }) {
   const { values, prov, set } = form;
   const { data: vendors } = useAsync(fetchVendors, []);
   const { data: materials } = useAsync(fetchMaterials, []);
+  const { data: products } = useAsync(fetchProducts, []);
+  const sortText = (list: string[]) => [...new Set(list)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  // Offer what's already in use alongside the built-in suggestions.
+  const typeOptions = [...new Set([...(materials ?? []).map((m) => m.type), ...(products ?? []).map((p) => p.material)])];
+  const lineOptions = sortText([...LINE_SUGGESTIONS, ...(products ?? []).map((p) => p.line ?? "").filter(Boolean)]);
   return (
     <>
-      <FormField label="Brand" value={values.vendor} onChange={(v) => set("vendor", v)} list="vendor-list" required placeholder="Sunlu" provenance={prov.vendor} />
-      <datalist id="vendor-list">
-        {vendors?.map((v) => (
-          <option key={v.id} value={v.name} />
-        ))}
-      </datalist>
+      <ComboField
+        label="Brand"
+        value={values.vendor}
+        onChange={(v) => set("vendor", v)}
+        options={sortText((vendors ?? []).map((v) => v.name))}
+        required
+        placeholder="Sunlu"
+        provenance={prov.vendor}
+        newLabel="Add new brand"
+      />
 
       <div>
         <span className="mb-1 block text-sm font-medium text-ink-200" id="preset-label">
@@ -57,27 +67,26 @@ export function IdentityFields({ form }: { form: ProductForm }) {
           })}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <FormField
+          <ComboField
             label="Type"
             value={values.material}
             onChange={(v) => set("material", v.toUpperCase())}
-            list="material-list"
+            options={typeOptions}
             required
             provenance={prov.material}
             help="OrcaSlicer's filament type; picks the base profile."
+            newLabel="Use type"
           />
-          <FormField label="Line" value={values.line ?? ""} onChange={(v) => set("line", v)} list="line-list" placeholder="PLA+, High Speed…" provenance={prov.line} />
+          <ComboField
+            label="Line"
+            value={values.line ?? ""}
+            onChange={(v) => set("line", v)}
+            options={lineOptions}
+            placeholder="PLA+, High Speed…"
+            provenance={prov.line}
+            newLabel="Use line"
+          />
         </div>
-        <datalist id="material-list">
-          {materials?.map((m) => (
-            <option key={m.type} value={m.type} />
-          ))}
-        </datalist>
-        <datalist id="line-list">
-          {LINE_SUGGESTIONS.map((l) => (
-            <option key={l} value={l} />
-          ))}
-        </datalist>
       </div>
 
       <FormField label="Color name" value={values.colorName ?? ""} onChange={(v) => set("colorName", v)} provenance={prov.colorName} placeholder="Walnut" />
