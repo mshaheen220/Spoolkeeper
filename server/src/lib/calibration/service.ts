@@ -4,6 +4,7 @@ import { config } from "../../config";
 import { getDb } from "../../db";
 import { getSetting, listSpoolsForProduct, type Spool } from "../../db/repo";
 import { DEFAULT_PRINTER_PROFILE } from "../orca/bases";
+import { listUserPrinters } from "../orca/printers";
 import { orcaValue } from "../orca/userProfiles";
 import type { Computed, LinearAdvance, PrinterRetraction, ResultValue, TestContext, TestId } from "./tests";
 
@@ -18,6 +19,9 @@ export interface CalibrationRun {
   accepted: boolean;
   notes: string | null;
   createdAt: string;
+  /** Printer preset and nozzle the run was measured on. */
+  printerProfile: string | null;
+  nozzleDiameter: number | null;
 }
 
 export interface TunedValue {
@@ -27,6 +31,8 @@ export interface TunedValue {
   runId: number;
   test: TestId;
   date: string;
+  printerProfile: string | null;
+  nozzleDiameter: number | null;
 }
 
 type Row = Record<string, unknown>;
@@ -43,6 +49,8 @@ function rowToRun(r: Row): CalibrationRun {
     accepted: r.accepted === 1,
     notes: (r.notes as string) ?? null,
     createdAt: r.created_at as string,
+    printerProfile: (r.printer_profile as string) ?? null,
+    nozzleDiameter: (r.nozzle_diameter as number) ?? null,
   };
 }
 
@@ -55,10 +63,30 @@ export function getRun(id: number): CalibrationRun | null {
   return r ? rowToRun(r) : null;
 }
 
-export function saveRun(spoolId: number, test: TestId, params: object, observation: object, computed: Computed, notes: string | null): CalibrationRun {
+export function saveRun(
+  spoolId: number,
+  test: TestId,
+  params: object,
+  observation: object,
+  computed: Computed,
+  notes: string | null,
+  printer: { name: string; nozzleDiameter: number | null },
+): CalibrationRun {
   const info = getDb()
-    .prepare("INSERT INTO calibration_runs (spool_id, test, params, observation, result, formula, notes) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(spoolId, test, JSON.stringify(params), JSON.stringify(observation), JSON.stringify(computed.values), JSON.stringify(computed.formula), notes);
+    .prepare(
+      "INSERT INTO calibration_runs (spool_id, test, params, observation, result, formula, notes, printer_profile, nozzle_diameter) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(
+      spoolId,
+      test,
+      JSON.stringify(params),
+      JSON.stringify(observation),
+      JSON.stringify(computed.values),
+      JSON.stringify(computed.formula),
+      notes,
+      printer.name,
+      printer.nozzleDiameter,
+    );
   return getRun(Number(info.lastInsertRowid))!;
 }
 
@@ -73,7 +101,8 @@ export function tunedFromRuns(runs: CalibrationRun[]): Record<string, TunedValue
   const out: Record<string, TunedValue> = {};
   for (const run of runs) {
     if (!run.accepted) continue;
-    for (const v of run.result) out[v.key] = { ...v, runId: run.id, test: run.test, date: run.createdAt };
+    for (const v of run.result)
+      out[v.key] = { ...v, runId: run.id, test: run.test, date: run.createdAt, printerProfile: run.printerProfile, nozzleDiameter: run.nozzleDiameter };
   }
   return out;
 }
@@ -93,6 +122,22 @@ export function calibratedSpoolForProduct(productId: number, preferSpoolId: numb
     if (!best || at > best.at || (at === best.at && s.id === preferSpoolId)) best = { spoolId: s.id, at };
   }
   return best?.spoolId ?? null;
+}
+
+/**
+ * The printer calibration happens on (Settings), with its nozzle size read
+ * from OrcaSlicer's preset when available, else from the preset name.
+ */
+export async function calibrationPrinter(): Promise<{ name: string; nozzleDiameter: number | null }> {
+  const name = getSetting("printerProfile", DEFAULT_PRINTER_PROFILE);
+  let nozzle: number | null = null;
+  try {
+    nozzle = (await listUserPrinters(config.orcaUserDir)).find((p) => p.name === name)?.nozzleDiameter ?? null;
+  } catch {
+    // Folder not readable - fall back to the name.
+  }
+  const fromName = name.match(/(\d+(?:\.\d+)?)\s*(?:mm\s*)?nozzle/i);
+  return { name, nozzleDiameter: nozzle ?? (fromName ? Number(fromName[1]) : null) };
 }
 
 export function linearAdvanceStatus(): LinearAdvance {

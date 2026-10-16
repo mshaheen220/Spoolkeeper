@@ -144,4 +144,11 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX calibration_runs_spool ON calibration_runs(spool_id, created_at);
   `,
+
+  /* 5: which printer/nozzle a calibration was measured on - filament profiles now show on every printer, so the tuning's origin is recorded */ `
+  ALTER TABLE calibration_runs ADD COLUMN printer_profile TEXT;
+  ALTER TABLE calibration_runs ADD COLUMN nozzle_diameter REAL;
+  UPDATE calibration_runs SET printer_profile = COALESCE((SELECT json_extract(value, '$') FROM settings WHERE key = 'printerProfile'), 'TheHammer  0.4 nozzle');
+  UPDATE calibration_runs SET nozzle_diameter = CASE WHEN printer_profile LIKE '%0.2 nozzle%' THEN 0.2 ELSE 0.4 END;
+  `,
 ];

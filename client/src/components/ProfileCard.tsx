@@ -58,9 +58,13 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
             <p className="font-medium break-words">{data.profile.name}</p>
             <p className="text-xs text-ink-400">
               Inherits <span className="font-mono">{data.profile.inherits}</span>
-              {data.profile.baseFallback && " (no base for this material; using PLA's)"} · for{" "}
-              <span className="font-mono whitespace-pre">{data.profile.compatiblePrinters.join(", ")}</span>
+              {data.profile.baseFallback && " (no base for this material; using PLA's)"} · shows for every printer
             </p>
+            {data.profile.tunedOn.length > 0 && (
+              <p className="text-xs text-ink-400">
+                Tuned on <span className="whitespace-pre">{data.profile.tunedOn.join(", ")}</span>
+              </p>
+            )}
           </div>
 
           {data.tunedFromSpool != null && data.tunedFromSpool !== spoolId && (

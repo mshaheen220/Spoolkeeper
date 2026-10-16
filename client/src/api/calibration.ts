@@ -49,6 +49,8 @@ export interface CalibrationRun {
   accepted: boolean;
   notes: string | null;
   createdAt: string;
+  printerProfile: string | null;
+  nozzleDiameter: number | null;
 }
 
 export interface TunedValue extends ResultValue {
@@ -61,6 +63,7 @@ export interface CalibrationState {
   spoolId: number;
   product: Product;
   linearAdvance: LinearAdvance;
+  calibratingOn: { name: string; nozzleDiameter: number | null };
   tests: TestInfo[];
   runs: CalibrationRun[];
   tuned: Record<string, TunedValue>;

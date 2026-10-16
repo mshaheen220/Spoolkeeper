@@ -117,7 +117,7 @@ Verified against OrcaSlicer 2.4.2's own user presets:
 - **File and name.** The file name is the preset name, e.g. `Sunlu PLA Wood Walnut (Spool #13).json` (per spool) or `Sunlu PLA Wood Walnut.json` (per product).
 - **Values.** Each one is a single-element string array. Keys are sorted, with 4-space indent.
 - **`inherits`.** The material's Creality generic (`Creality Generic PLA`/`PETG`/`TPU`/`ABS`/`ASA`/`PLA-CF`), or OrcaFilamentLibrary's `Generic X @System`; see `server/src/lib/orca/bases.ts`.
-- **`compatible_printers`.** `["TheHammer  0.4 nozzle"]`. Note the double space; it's configurable in Settings.
+- **`compatible_printers`.** `[]` with an empty `compatible_printers_condition`, which means compatible with every printer (`Preset.cpp` `is_compatible_with_printer`, OrcaSlicer 2.4.2). Filament isn't machine-specific. Each calibration run records the printer preset and nozzle it was measured on (`calibration_runs.printer_profile` / `nozzle_diameter`, from Settings' "Printer you calibrate on"), and the profile notes list them as "Tuned on …".
 - **`filament_notes`.** Lists all colors (and direction), the finish and the Shore hardness, which have no preset keys. It ends with `spoolkeeper:spool=<id>;product=<id>`, which marks files Spoolkeeper owns. OrcaSlicer 2.4.2's `filament_multi_colour` / `filament_colour_type` are per-project filament-slot settings, not preset keys, so presets carry only the main color.
 - **`.info`.** `base_id` is the base's `filament_id` (e.g. `GFL99`).
 

@@ -31,13 +31,13 @@ async function addWalnut() {
 }
 
 describe("OrcaSlicer profile", () => {
-  it("builds a per-spool preset attached to TheHammer with sourced values", async () => {
+  it("builds a per-spool preset that shows for every printer, with sourced values", async () => {
     const id = await addWalnut();
     const res = await request(app).get(`/api/spools/${id}/profile`).expect(200);
     expect(res.body.profile).toMatchObject({
       name: `Sunlu PLA Wood Walnut (Spool #${id})`,
       inherits: "Creality Generic PLA",
-      compatiblePrinters: ["TheHammer  0.4 nozzle"],
+      tunedOn: [],
     });
     const json = res.body.orca.json;
     expect(json).toMatchObject({
@@ -45,7 +45,8 @@ describe("OrcaSlicer profile", () => {
       filament_settings_id: [`Sunlu PLA Wood Walnut (Spool #${id})`],
       inherits: "Creality Generic PLA",
       from: "User",
-      compatible_printers: ["TheHammer  0.4 nozzle"],
+      compatible_printers: [],
+      compatible_printers_condition: "",
       filament_type: ["PLA"],
       filament_vendor: ["Sunlu"],
       default_filament_colour: ["#5A4741"],
@@ -79,10 +80,16 @@ describe("OrcaSlicer profile", () => {
     expect(res.text.startsWith('{\n    "compatible_printers"')).toBe(true);
   });
 
-  it("uses the printer profile from settings, keeping its double space", async () => {
+  it("records which printer and nozzle tuned values were measured on, keeping the preset's double space", async () => {
     const id = await addWalnut();
-    await request(app).put("/api/settings").send({ printerProfile: "TheHammer  0.2 nozzle" }).expect(200);
+    await request(app).post(`/api/spools/${id}/calibration/runs`).send({ test: "temp", params: { start: 230, end: 190 }, observation: { best: 210 } }).expect(201);
+    await request(app).put("/api/settings").send({ printerProfile: "TheHammer 0.2 nozzle" }).expect(200);
+    const run = await request(app).post(`/api/spools/${id}/calibration/runs`).send({ test: "flow1", params: { oldFlow: 0.98 }, observation: { modifier: 0 } }).expect(201);
+    expect(run.body.run).toMatchObject({ printerProfile: "TheHammer 0.2 nozzle", nozzleDiameter: 0.2 });
+
     const res = await request(app).get(`/api/spools/${id}/profile`).expect(200);
-    expect(res.body.orca.json.compatible_printers).toEqual(["TheHammer  0.2 nozzle"]);
+    expect(res.body.orca.json.compatible_printers).toEqual([]);
+    expect(res.body.profile.tunedOn).toEqual(["TheHammer  0.4 nozzle (0.4 mm nozzle)", "TheHammer 0.2 nozzle (0.2 mm nozzle)"]);
+    expect(res.body.orca.json.filament_notes[0]).toContain("Tuned on TheHammer  0.4 nozzle (0.4 mm nozzle), TheHammer 0.2 nozzle (0.2 mm nozzle)");
   });
 });

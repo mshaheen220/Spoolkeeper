@@ -104,13 +104,13 @@ On a spool's page, under **OrcaSlicer profile**:
 3. Tap **Download .json**, then in OrcaSlicer use **File → Import → Import Configs…**.
    - Or download the **zip** and copy both files into `~/Library/Application Support/OrcaSlicer/user/default/filament/`, then restart OrcaSlicer.
 
-The preset inherits the matching Creality base profile and only appears when your **TheHammer 0.4** printer is selected. Its color is the filament's color, or the ★ main color for a multi-color filament. All the colors, the finish and the Shore hardness are written into the preset's notes.
+The preset inherits the matching Creality base profile and **shows up for every printer**: filament is shelf stock, so it's available whether you pick TheHammer 0.4, the 0.2 preset or a future second printer. The notes say which printer and nozzle the tuned values were measured on. That matters most for max volumetric speed, which is much lower on a 0.2 mm nozzle; recalibrate on the 0.2 if you print this filament there often. Its color is the filament's color, or the ★ main color for a multi-color filament. All the colors, the finish and the Shore hardness are written into the preset's notes.
 
 Calibrated values are badged **Tuned** and override the base profile. Until a value is tuned, the amber **Not tuned yet** box lists it and OrcaSlicer uses the base profile's value; nothing is guessed. A per-filament profile uses the spool you're on if it's calibrated, otherwise the most recently calibrated spool of that filament, and says which.
 
 ## Settings
 
-- **Printer profile.** Pick the OrcaSlicer printer preset that exported filament profiles attach to. The list comes straight from OrcaSlicer's printer presets (yours are *TheHammer 0.4 nozzle* and *TheHammer 0.2 nozzle*), so the exact names are used, including the double space in the 0.4 one. Changing it saves immediately.
+- **Printer you calibrate on.** Pick it from your OrcaSlicer printer presets (*TheHammer 0.4 nozzle* or *TheHammer 0.2 nozzle*). Every calibration result records it, along with the nozzle size, and profiles mention it in their notes. It doesn't limit where profiles show up; they show for every printer. Changing it saves immediately.
 - **Refresh cached data.** Fetches fresh copies of the filament databases on the next lookup.
 
 ## Coming next

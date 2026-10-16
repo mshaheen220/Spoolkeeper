@@ -14,7 +14,7 @@ export function SettingsPage() {
     await saveSettings({ printerProfile: name });
     setTyped(null);
     reload();
-    setStatus(`Exported profiles now attach to “${name}”.`);
+    setStatus(`New calibration results will be recorded as measured on “${name}”.`);
   };
 
   const refresh = async () => {
@@ -197,7 +197,12 @@ function PrinterPicker({
   onPick: (name: string) => void;
 }) {
   const id = "printer-profile";
-  const help = <span className="mt-1 block text-xs text-ink-400">Exported filament profiles only show up in OrcaSlicer when this printer is selected.</span>;
+  const help = (
+    <span className="mt-1 block text-xs text-ink-400">
+      The printer you're calibrating on. Each calibration result records it (with its nozzle size), and profiles note it — tuned values like max
+      volumetric speed depend on the hotend and nozzle. Exported filament profiles show up for every printer regardless.
+    </span>
+  );
   if (printers === null) return <p className="text-sm text-ink-400">Reading OrcaSlicer printers…</p>;
 
   if (printers.length === 0) {
@@ -205,7 +210,7 @@ function PrinterPicker({
     return (
       <div>
         <label htmlFor={id} className="mb-1 block text-sm font-medium text-ink-200">
-          Printer profile
+          Printer you calibrate on
         </label>
         <p className="mb-2 text-xs text-amber-300 day:text-amber-800">
           Couldn't read OrcaSlicer's printer presets, so type the name exactly as OrcaSlicer shows it.
@@ -225,7 +230,7 @@ function PrinterPicker({
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium text-ink-200">
-        Printer profile
+        Printer you calibrate on
       </label>
       <select id={id} className="field" value={current} onChange={(e) => onPick(e.target.value)}>
         {!known && current && <option value={current}>{current} (not found in OrcaSlicer)</option>}

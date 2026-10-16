@@ -37,6 +37,7 @@ function History({ runs, onChange }: { runs: CalibrationRun[]; onChange: () => v
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-medium">
                 {date(r.createdAt)} · run #{r.id}
+                {r.printerProfile && <span className="font-normal text-ink-400"> · {r.printerProfile.replace(/\s+/g, " ")}</span>}
               </span>
               <button
                 type="button"
@@ -157,6 +158,13 @@ export function CalibratePage() {
         <div>
           <h1 className="text-lg leading-tight font-semibold">Calibrate {p.displayName}</h1>
           <p className="text-sm text-ink-400">Spool #{spoolId} · follow the steps in order; each builds on the last.</p>
+          <p className="text-xs text-ink-400">
+            Calibrating on <span className="whitespace-pre">{data.calibratingOn.name}</span>
+            {data.calibratingOn.nozzleDiameter ? ` (${data.calibratingOn.nozzleDiameter} mm nozzle)` : ""} ·{" "}
+            <Link to="/settings" className="underline">
+              change
+            </Link>
+          </p>
         </div>
       </div>
 

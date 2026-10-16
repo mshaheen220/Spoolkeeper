@@ -107,7 +107,7 @@ Every value is written as a single-element string array, matching the observed f
 |---|---|
 | profile name | `name`, `filament_settings_id` |
 | base | `inherits`: `Creality Generic PLA` / `PETG` / `TPU`. Their `compatible_printers` includes `Creality Ender-3 V2 0.4 nozzle`, which `TheHammer  0.4 nozzle` inherits. Silk and wood map to Creality Generic PLA. The map is editable in settings. |
-| printer | `compatible_printers: ["TheHammer  0.4 nozzle"]`, `compatible_printers_condition: ""` |
+| printer | `compatible_printers: []`, `compatible_printers_condition: ""`, i.e. every printer. *(Changed after Phase 2: filament is shelf stock, not machine-specific. Calibration runs record the printer and nozzle they were measured on, and profile notes say "Tuned on …".)* |
 | from/version | `from: "User"`, `version: "2.4.0.0"`, `is_custom_defined: "0"` |
 | vendor / material | `filament_vendor`, `filament_type` |
 | color | `default_filament_colour` |

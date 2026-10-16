@@ -15,7 +15,7 @@ export interface SpoolProfile {
   spoolId: number;
   productId: number;
   scope: ProfileScope;
-  profile: { name: string; fileName: string; inherits: string; baseFallback: boolean; compatiblePrinters: string[] };
+  profile: { name: string; fileName: string; inherits: string; baseFallback: boolean; tunedOn: string[] };
   tunedFromSpool: number | null;
   values: ProfileValue[];
   pending: { key: string; why: string }[];

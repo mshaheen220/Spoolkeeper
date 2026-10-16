@@ -31,7 +31,8 @@ export interface BuiltProfile {
   fileName: string;
   inherits: string;
   baseFallback: boolean;
-  compatiblePrinters: string[];
+  /** Printer presets the tuned values were measured on ("TheHammer  0.4 nozzle (0.4 mm)"); empty if untuned. */
+  tunedOn: string[];
   values: ProfileValue[];
   pending: PendingValue[];
   /** Spool whose calibration was used (a per-product profile may borrow another spool's). */
@@ -62,7 +63,6 @@ export function buildProfile(opts: {
   product: Product;
   productSources: Record<string, FieldSource>;
   scope: ProfileScope;
-  printerProfile: string;
   /** Spool prices to average for a per-product profile. */
   productSpoolPrices?: number[];
   /** Calibration results to write (latest accepted value per key). */
@@ -71,7 +71,7 @@ export function buildProfile(opts: {
   linearAdvance?: LinearAdvance;
   now?: Date;
 }): BuiltProfile {
-  const { spool, product, productSources: ps, scope, printerProfile } = opts;
+  const { spool, product, productSources: ps, scope } = opts;
   const base = baseFor(product.material);
   const name = profileName(product, scope, spool.id);
   const values: ProfileValue[] = [];
@@ -120,13 +120,25 @@ export function buildProfile(opts: {
   if (opts.linearAdvance === "unsupported")
     values.push({ key: "enable_pressure_advance", value: "0", source: "spoolkeeper", why: "Off: your Marlin firmware has no Linear Advance (M900 is an unknown command)." });
 
+  // Filament is shelf stock, not printer-specific: the profile shows for every
+  // printer. Some tuned values (max volumetric speed above all) depend on the
+  // hotend and nozzle, so the notes say where they were measured.
+  const tunedOn = [
+    ...new Set(
+      Object.values(tuned)
+        .filter((t) => t.printerProfile)
+        .map((t) => `${t.printerProfile}${t.nozzleDiameter ? ` (${t.nozzleDiameter} mm nozzle)` : ""}`),
+    ),
+  ];
+
   const pending = PENDING_CALIBRATION.filter((p) => !tuned[p.key]).filter((p) => !(p.key === "pressure_advance" && opts.linearAdvance === "unsupported"));
 
   // Structural keys: which printer it attaches to, and an ownership tag
   // that Phase 3's publish step uses to recognize its own files.
   const tag = `spoolkeeper:${scope === "spool" ? `spool=${spool.id};` : ""}product=${product.id}`;
   const json: Record<string, unknown> = {
-    compatible_printers: [printerProfile],
+    // Empty list + empty condition = compatible with every printer (Preset.cpp is_compatible_with_printer, OrcaSlicer 2.4.2).
+    compatible_printers: [],
     compatible_printers_condition: "",
     filament_notes: [
       [
@@ -134,6 +146,7 @@ export function buildProfile(opts: {
         multi ? `Colors: ${product.colorHexes!.join(", ")}${product.multiColorDirection ? ` (${product.multiColorDirection})` : ""}` : null,
         product.finish && product.finish !== "Standard" ? `Finish: ${product.finish}` : null,
         product.shoreHardness != null ? `Shore ${product.shoreHardness}${product.shoreScale ?? ""}` : null,
+        tunedOn.length ? `Tuned on ${tunedOn.join(", ")}` : null,
         tag,
       ]
         .filter(Boolean)
@@ -166,7 +179,7 @@ export function buildProfile(opts: {
     fileName: name,
     inherits: base.inherits,
     baseFallback: base.fallback,
-    compatiblePrinters: [printerProfile],
+    tunedOn,
     values,
     pending,
     tunedFromSpool: Object.keys(tuned).length ? (opts.tunedFromSpool ?? spool.id) : null,

@@ -1,9 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getSetting, getSources, getSpool, listSpoolsForProduct } from "../db/repo";
+import { getSources, getSpool, listSpoolsForProduct } from "../db/repo";
 import { calibratedSpoolForProduct, linearAdvanceStatus, tunedForSpool } from "../lib/calibration/service";
 import { idParam, notFound } from "../lib/http";
-import { DEFAULT_PRINTER_PROFILE } from "../lib/orca/bases";
 import { buildProfile, profileJsonText, type ProfileScope } from "../lib/orca/profile";
 
 export const profileRouter = Router();
@@ -26,7 +25,6 @@ function build(spoolId: number, scope: ProfileScope) {
     product: spool.product,
     productSources: getSources("product", spool.product.id),
     scope,
-    printerProfile: getSetting("printerProfile", DEFAULT_PRINTER_PROFILE),
     productSpoolPrices: listSpoolsForProduct(spool.product.id)
       .map((s) => s.price)
       .filter((p): p is number => p != null),
@@ -46,7 +44,7 @@ profileRouter.get("/spools/:id/profile", (req, res) => {
     spoolId,
     productId: getSpool(spoolId)!.product.id,
     scope: p.scope,
-    profile: { name: p.name, fileName: p.fileName, inherits: p.inherits, baseFallback: p.baseFallback, compatiblePrinters: p.compatiblePrinters },
+    profile: { name: p.name, fileName: p.fileName, inherits: p.inherits, baseFallback: p.baseFallback, tunedOn: p.tunedOn },
     tunedFromSpool: p.tunedFromSpool,
     values: p.values,
     pending: p.pending,
