@@ -63,6 +63,9 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
             </p>
           </div>
 
+          {data.tunedFromSpool != null && data.tunedFromSpool !== spoolId && (
+            <p className="text-xs text-ink-400">Tuned values come from spool #{data.tunedFromSpool}, the most recently calibrated spool of this filament.</p>
+          )}
           <details>
             <summary className="cursor-pointer text-sm text-ink-300">{data.values.length} values written</summary>
             <ul className="mt-2 divide-y divide-ink-800">
@@ -72,7 +75,13 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
                     <span className="font-mono text-xs text-ink-300">{v.key}</span>
                     <span className="flex items-center gap-1.5 text-sm">
                       {v.value}
-                      {v.source !== "calibration" && v.source !== "spoolkeeper" && <SourceBadge compact source={v.source} sourceRef={v.sourceRef} />}
+                      {v.source === "calibration" ? (
+                        <span className="rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300 day:text-emerald-800" title={v.sourceRef ?? undefined}>
+                          Tuned
+                        </span>
+                      ) : (
+                        v.source !== "spoolkeeper" && <SourceBadge compact source={v.source} sourceRef={v.sourceRef} />
+                      )}
                     </span>
                   </div>
                   <p className="text-xs text-ink-500">{v.why}</p>
@@ -81,7 +90,7 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
             </ul>
           </details>
 
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 day:text-amber-900">
+          {data.pending.length > 0 && <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 day:text-amber-900">
             <p className="font-medium">Not tuned yet — the base profile's values apply for:</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
               {data.pending.map((p) => (
@@ -90,7 +99,7 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
                 </li>
               ))}
             </ul>
-          </div>
+          </div>}
 
           <div className="flex flex-wrap gap-2">
             <a className="btn-primary" href={profileJsonUrl(spoolId, scope)} download>

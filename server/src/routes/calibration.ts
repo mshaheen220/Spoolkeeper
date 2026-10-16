@@ -9,7 +9,7 @@ import {
   tunedForSpool,
   updateRun,
 } from "../lib/calibration/service";
-import { getTest, TESTS } from "../lib/calibration/tests";
+import { BASE_DEFAULTS, getTest, TESTS } from "../lib/calibration/tests";
 import { HttpError, idParam, notFound } from "../lib/http";
 
 export const calibrationRouter = Router();
@@ -57,6 +57,11 @@ calibrationRouter.get("/spools/:id/calibration", (req, res) => {
     tests,
     runs: listRuns(spool.id),
     tuned: tunedForSpool(spool.id),
+    // Base profile values a tuned value replaces; the printer preset's retraction applies when the base has none.
+    baseDefaults: {
+      ...(ctx.printerRetraction.length != null ? { filament_retraction_length: String(ctx.printerRetraction.length) } : {}),
+      ...(BASE_DEFAULTS[spool.product.material.toUpperCase()] ?? {}),
+    },
     siblings,
   });
 });

@@ -29,7 +29,7 @@ export const TIPS: Tip[] = [
   { category: "drying", text: "Wet filament hisses or crackles at the nozzle and leaves tiny bubbles on the surface — the easiest moisture test there is." },
 
   // --- Calibration ---
-  { category: "calibration", text: "Calibrate in order: temperature, then flow ratio, then pressure advance, then retraction, then max volumetric speed. Each step relies on the ones before it." },
+  { category: "calibration", text: "Calibrate in OrcaSlicer's order: temperature, max volumetric speed, pressure advance, flow ratio, then retraction. Each step relies on the ones before it." },
   { category: "calibration", text: "On the temperature tower, pick the coolest block with clean bridges and good layer bonding — hotter only adds stringing." },
   { category: "calibration", text: "Flow ratio Pass 1: pick the smoothest top surface, then multiply your current flow by (100 + block number) / 100. Pass 2 refines from that new value." },
   { category: "calibration", text: "Judge flow-rate blocks under raking light with a fingertip: too little flow shows gaps between lines, too much shows ridges and a rough edge." },

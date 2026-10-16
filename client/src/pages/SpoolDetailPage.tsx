@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { fetchSpool, updateSpool } from "../api/inventory";
+import { TunedSummary } from "../components/calibration/TunedSummary";
 import { ProfileCard } from "../components/ProfileCard";
 import { SourceBadge } from "../components/SourceBadge";
 import { Swatch } from "../components/Swatch";
@@ -167,6 +168,8 @@ export function SpoolDetailPage() {
           <Row label="Notes" value={spool.notes} />
         </dl>
       </section>
+
+      <TunedSummary spoolId={spool.id} />
 
       <ProfileCard spoolId={spool.id} />
 

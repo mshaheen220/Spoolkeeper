@@ -16,6 +16,7 @@ export interface SpoolProfile {
   productId: number;
   scope: ProfileScope;
   profile: { name: string; fileName: string; inherits: string; baseFallback: boolean; compatiblePrinters: string[] };
+  tunedFromSpool: number | null;
   values: ProfileValue[];
   pending: { key: string; why: string }[];
   orca: { json: Record<string, unknown>; info: string };
@@ -25,11 +26,26 @@ export const fetchSpoolProfile = (id: number, scope: ProfileScope) => request<Sp
 
 export const profileJsonUrl = (id: number, scope: ProfileScope) => `/api/spools/${id}/profile/orca.json?scope=${scope}`;
 
+export interface EstepsCheck {
+  current: number;
+  markMm: number;
+  extrudeMm: number;
+  remainingMm: number;
+  extrudedMm: number;
+  suggested: number;
+  checkedAt: string;
+}
+
 export interface Settings {
   printerProfile: string;
   orcaUserDir: string;
+  linearAdvance: "unknown" | "supported" | "unsupported";
+  esteps: EstepsCheck | null;
 }
 
 export const fetchSettings = () => request<Settings>("/api/settings");
+
+export const checkEsteps = (body: { current: number; remainingMm: number; markMm?: number; extrudeMm?: number }) =>
+  request<Settings>("/api/settings/esteps", { method: "POST", body: JSON.stringify(body) });
 
 export const saveSettings = (patch: Partial<Settings>) => request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(patch) });

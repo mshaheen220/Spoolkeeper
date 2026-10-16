@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from "react-router";
 import { Header } from "./components/Header";
+import { CalibratePage } from "./pages/CalibratePage";
 import { EditProductPage } from "./pages/EditProductPage";
 import { ImportPage } from "./pages/ImportPage";
 import { IntakePage } from "./pages/IntakePage";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/products/:id/edit" element={<EditProductPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/spools/:id" element={<SpoolDetailPage />} />
+          <Route path="/spools/:id/calibrate" element={<CalibratePage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

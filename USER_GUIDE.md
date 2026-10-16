@@ -71,7 +71,31 @@ Tap a spool in the list to see:
 - **Other spools of this filament.**
 - **Archive** hides the spool from the list once it's empty.
 
-## 6. Get a profile into OrcaSlicer
+## 6. Calibrate a spool
+
+On a spool's page, tap **📐 Calibrate this spool**. The wizard follows OrcaSlicer's recommended order, and each step builds on the one before:
+
+1. **Temperature.** Menu bar → Calibration › Temperature, with the filament type and start/end temperatures shown. The tower starts hottest at the bottom and gets 5 °C cooler every block. Enter the temperature printed on the best block.
+2. **Max volumetric speed.** Calibration › Max flowrate. Measure the height where the walls first turn rough or change sheen. Spoolkeeper works out start + height × step, then takes off a safety margin (15% unless you change it).
+3. **Pressure advance.** Skipped, because your Marlin firmware has no Linear Advance (`M900` → Unknown command). Exported profiles keep it switched off. If you ever flash firmware that has it, change this in Settings and the step comes back.
+4. **Flow ratio.** Two ways to do it:
+   - **Pass 1 + Pass 2:** pick the smoothest block's modifier in Pass 1 (−20 … +20). Put the result into OrcaSlicer's filament flow ratio before printing Pass 2 (−9 … 0); the wizard reminds you.
+   - **YOLO:** OrcaSlicer's single-print method.
+5. **Retraction.** Calibration › Retraction (0 → 2 mm in 0.1 mm steps). Measure the height where stringing stops, or type the length from the G-code's `Calib_Retraction_tower` comment. Speed, z-hop type and wipe come prefilled from your printer profile (Slope Lift, 0.8 mm wipe); change them if this filament needs something different.
+6. **Cooling, bed and first layer** (optional). Fan speeds and bed temperatures for smooth and textured PEI that worked on real prints.
+
+Each step shows **the math** as you type. It warns you when a result looks odd: outside the maker's range, far from your known-good Sunlu Walnut Wood (210 °C, 1.2 mm), or a flow ratio far from 1.0, which usually means the extruder needs checking.
+
+**Save result** stores the run with its date, what you saw, the computed value and your notes. Redo a step any time; the newest result is the one used. **History** lets you switch an older run back on (*Use again*) or switch one off (*Don't use*). Nothing is ever deleted.
+
+On the spool's page, **Tuned settings** compares each value with the maker's range, the base profile's default, and other spools of the same filament.
+
+**Before your first calibration**, check **Settings → Printer**:
+
+- **Linear Advance** is set to *Not available* (your `M900` test).
+- **E-steps check** (optional): mark the filament 120 mm above the extruder, extrude 100 mm, enter what's left, and Spoolkeeper tells you whether 93 is right.
+
+## 7. Get a profile into OrcaSlicer
 
 On a spool's page, under **OrcaSlicer profile**:
 
@@ -82,7 +106,7 @@ On a spool's page, under **OrcaSlicer profile**:
 
 The preset inherits the matching Creality base profile and only appears when your **TheHammer 0.4** printer is selected. Its color is the filament's color, or the ★ main color for a multi-color filament. All the colors, the finish and the Shore hardness are written into the preset's notes.
 
-The amber **Not tuned yet** box lists what calibration will fill in: temperature, flow ratio, pressure advance, retraction and max volumetric speed. Until then OrcaSlicer uses the base profile's values for those, and nothing is guessed.
+Calibrated values are badged **Tuned** and override the base profile. Until a value is tuned, the amber **Not tuned yet** box lists it and OrcaSlicer uses the base profile's value; nothing is guessed. A per-filament profile uses the spool you're on if it's calibrated, otherwise the most recently calibrated spool of that filament, and says which.
 
 ## Settings
 
@@ -91,6 +115,5 @@ The amber **Not tuned yet** box lists what calibration will fill in: temperature
 
 ## Coming next
 
-- **Calibrate this spool.** A step-by-step wizard to follow at the printer, for each OrcaSlicer calibration test. It computes the result and shows the math.
 - **Publish straight into OrcaSlicer.** Shows a diff, backs up first, and never overwrites a value you hand-tuned without asking.
 - **Printable spool labels** with a QR code linking to the spool's page.

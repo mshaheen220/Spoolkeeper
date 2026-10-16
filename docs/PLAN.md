@@ -137,7 +137,7 @@ Files are named exactly after the preset (OrcaSlicer keys user presets by name).
 ## 7. Calibration (Phase 2), verified against OrcaSlicer 2.4.2
 The binary contains the Temperature, Flow rate (Pass 1 Coarse, Pass 2 Fine, YOLO), Pressure advance (PA Tower/Line/Pattern), Retraction test and Max flowrate dialogs, with fields such as Start/End temp, PA step and Start/End retraction length.
 
-**Recommended order:** Temp → Flow P1 → Flow P2 → PA → Retraction → Max volumetric speed → optional cooling and bed. This changes your order by moving MVS last, for two reasons. OrcaSlicer's own guide orders it this way. And the MVS test measures how much plastic actually comes out, so it's only accurate once flow ratio is correct.
+**Recommended order:** Temp → Max volumetric speed → PA → Flow (Pass 1 + Pass 2, or YOLO) → Retraction → optional cooling and bed. *(Corrected in Phase 2: an earlier draft moved MVS last and claimed OrcaSlicer's guide did so; the guide actually puts MVS second, so that later tests don't exceed the hotend's limit. PA is skipped on TheHammer: M900 is an unknown command.)*
 
 **Formulas:**
 - Flow: `new = old × (100 + block)/100`, applied per pass.

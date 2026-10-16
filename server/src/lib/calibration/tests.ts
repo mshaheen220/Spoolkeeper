@@ -23,6 +23,8 @@ export interface InputField {
   options?: { value: string; label: string }[];
   help?: string;
   optional?: boolean;
+  /** Shown for reference (what to pick in OrcaSlicer's dialog), not edited. */
+  readOnly?: boolean;
 }
 
 export interface ResultValue {
@@ -99,7 +101,19 @@ const isWoodPla = (p: Product) => p.material === "PLA" && (p.finish === "Wood Fi
 /** The user's known-good reference: Sunlu Walnut Wood PLA. A sanity check, never a default. */
 export const WOOD_PLA_REFERENCE = { temp: 210, retraction: 1.2, zHopType: "Slope Lift", wipeDistance: 0.8 };
 
-/** Flow ratio of the inherited base profile (resolved from OrcaSlicer 2.4.2's system presets). */
+/**
+ * What the inherited base profile uses when a value isn't tuned - resolved
+ * through the inherits chain of OrcaSlicer 2.4.2's Creality Generic presets.
+ * Shown next to tuned values so the difference is visible.
+ */
+export const BASE_DEFAULTS: Record<string, Record<string, string>> = {
+  PLA: { filament_flow_ratio: "0.98", filament_max_volumetric_speed: "12", nozzle_temperature: "220", fan_min_speed: "100", fan_max_speed: "100", hot_plate_temp: "60", textured_plate_temp: "60" },
+  PETG: { filament_flow_ratio: "0.95", filament_max_volumetric_speed: "10", nozzle_temperature: "255", fan_min_speed: "40", fan_max_speed: "90", hot_plate_temp: "80", textured_plate_temp: "80" },
+  TPU: { filament_flow_ratio: "1", filament_max_volumetric_speed: "3.2", nozzle_temperature: "240", filament_retraction_length: "0.4", fan_min_speed: "100", fan_max_speed: "100", hot_plate_temp: "35", textured_plate_temp: "60" },
+  ABS: { filament_flow_ratio: "0.926", filament_max_volumetric_speed: "12", nozzle_temperature: "260", fan_min_speed: "10", fan_max_speed: "80", hot_plate_temp: "105", textured_plate_temp: "105" },
+};
+
+/** Flow ratio of the inherited base profile. */
 export const BASE_FLOW: Record<string, number> = { PLA: 0.98, PETG: 0.95, TPU: 1, ABS: 0.926, ASA: 0.926 };
 
 /** OrcaSlicer's temperature-tower presets (Temp_Calibration_Dlg::on_filament_type_changed). */
@@ -151,7 +165,7 @@ const temp: TestDef = {
     "Pick the block with the best balance: clean bridges and overhangs, little stringing, strong layers (try snapping the top off). If several look equally good, take the middle one.",
   ],
   params: [
-    { key: "dialogType", label: "Filament type (in the dialog)", type: "text" },
+    { key: "dialogType", label: "Filament type (in the dialog)", type: "text", readOnly: true },
     { key: "start", label: "Start temp", type: "number", unit: "°C", step: 5 },
     { key: "end", label: "End temp", type: "number", unit: "°C", step: 5 },
   ],

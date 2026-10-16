@@ -9,7 +9,7 @@ How to use the app: see [USER_GUIDE.md](USER_GUIDE.md).
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Intake + enrichment, inventory, OrcaSlicer import, manual profile export | **Done** |
-| 2 | Calibration wizard (temp → flow P1/P2 → PA → retraction → max volumetric speed), per-spool history | Planned |
+| 2 | Calibration wizard (temp → max volumetric speed → PA → flow P1/P2 or YOLO → retraction → cooling/bed), per-spool history, tuned values in profiles | **Done** |
 | 3 | Direct, non-destructive publish into OrcaSlicer (diff, backups, hand-tune guard), spoolman2slicer cleanup, printable labels | Planned |
 
 ## Quick start
@@ -50,6 +50,7 @@ server/                 Express + TypeScript, better-sqlite3, zod
   src/db/               migrations (PRAGMA user_version), repo (all SQL)
   src/lib/enrich/       ofd, spoolmandb, spoolz, productPage, fetch (cache), text (matching)
   src/lib/orca/         userProfiles (import parser), profile (preset builder), bases
+  src/lib/calibration/  tests (dialog defaults, block lists, formulas - each cited to OrcaSlicer 2.4.2 source), service (runs, tuned values)
   src/routes/           health, tips, inventory, enrich, orcaImport, profile, settings
 data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 ```
@@ -65,6 +66,7 @@ data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 | `spools` | Physical rolls; `id` is the **Spool #ID** on labels and profile names |
 | `field_sources` | Provenance for every stored value: `manual`, `ofd`, `spoolmandb`, `spoolz`, `product_url`, `orca_import`, `default` or `inferred` (derived by Spoolkeeper, e.g. finish from a "Silk" line), plus a reference |
 | `imported_profiles` | OrcaSlicer presets seen at import, with the tunable keys they set (untrusted starting values) |
+| `calibration_runs` | Every calibration run per spool: test, dialog params, observation, result (OrcaSlicer keys), formula, accepted, notes. The latest accepted value per key is the tuned value |
 | `enrich_cache` | Cached dataset responses (served stale when offline) |
 | `settings` | e.g. `printerProfile` |
 
@@ -101,7 +103,11 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `GET /import/orca/preview`, `POST /import/orca { rows }` | Read-only OrcaSlicer import |
 | `GET /spools/:id/profile[?scope=spool\|product]` | **Stable endpoint for other tools:** every value Spoolkeeper would write to OrcaSlicer, with source and reason, plus `pending` (not yet calibrated) and the raw preset JSON and `.info` |
 | `GET /spools/:id/profile/orca.json[?scope=…]` | The preset as a download |
-| `GET /settings`, `PUT /settings { printerProfile }` | Settings |
+| `GET /spools/:id/calibration` | Wizard state: tests with OrcaSlicer dialog values suggested for this filament, run history, tuned values, base-profile defaults, sibling spools' values |
+| `POST /spools/:id/calibration/preview` `{ test, params, observation }` | Compute a result and its formula without saving |
+| `POST /spools/:id/calibration/runs` | Save a run (validated, computed server-side) |
+| `PATCH /calibration/runs/:id { accepted }` | Stop or resume using a run; runs are never deleted |
+| `GET /settings`, `PUT /settings { printerProfile, linearAdvance }`, `POST /settings/esteps` | Settings, Linear Advance status, E-steps check |
 
 ### OrcaSlicer preset format
 
