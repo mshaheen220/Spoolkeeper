@@ -4,20 +4,21 @@ import { fetchSpools } from "../api/inventory";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
 import { colorFamilies, colorSortKey, FAMILIES, FAMILY_SWATCH, type ColorFamily } from "../lib/colorFamily";
+import { finishForLine } from "../lib/productFields";
 import type { Spool } from "../types";
 
 type SortKey = "color" | "brand" | "material" | "finish" | "id";
 
 const STANDARD_DIAMETER = 1.75;
 
-// Lines that only describe the look ("Silk", "Transparent", "Wood") duplicate the
-// Finish column, so the Material column keeps just real product lines ("PLA+", "High Speed").
-const FINISH_WORDS = /^(silk|matte?|marble|glitter|sparkle|glow|translucent|transparent|clear|wood|carbon fiber|iridescent|glossy)$/i;
-
-/** "PLA", "PLA+", "PLA · High Speed". */
+/**
+ * "PLA", "PLA+", "PLA · High Speed". A line that just repeats the finish
+ * ("Transparent" on a Translucent filament) is left to the Finish column -
+ * but only when the finish is actually set, so it never disappears entirely.
+ */
 function materialLabel(s: Spool): string {
-  const { material, line } = s.product;
-  if (!line || FINISH_WORDS.test(line.trim())) return material;
+  const { material, line, finish } = s.product;
+  if (!line || (finish && finishForLine(line) === finish)) return material;
   return line.toUpperCase().includes(material.toUpperCase()) ? line : `${material} · ${line}`;
 }
 

@@ -8,6 +8,7 @@ import {
   FINISHES,
   FLEXIBLE_MATERIALS,
   GRID_FIELDS,
+  finishForLine,
   LINE_SUGGESTIONS,
   MATERIAL_PRESETS,
   SHORE_HELP,
@@ -28,7 +29,9 @@ export function IdentityFields({ form }: { form: ProductForm }) {
   const sortText = (list: string[]) => [...new Set(list)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   // Offer what's already in use alongside the built-in suggestions.
   const typeOptions = [...new Set([...(materials ?? []).map((m) => m.type), ...(products ?? []).map((p) => p.material)])];
-  const lineOptions = sortText([...LINE_SUGGESTIONS, ...(products ?? []).map((p) => p.line ?? "").filter(Boolean)]);
+  // Lines already in use are offered too - except ones that are really a finish ("Silk", "Transparent").
+  const lineOptions = sortText([...LINE_SUGGESTIONS, ...(products ?? []).map((p) => p.line ?? "").filter((l) => l && !finishForLine(l))]);
+  const lineFinish = finishForLine(values.line);
   return (
     <>
       <ComboField
@@ -87,6 +90,21 @@ export function IdentityFields({ form }: { form: ProductForm }) {
             newLabel="Use line"
           />
         </div>
+        {lineFinish && values.finish !== lineFinish && (
+          <p role="status" className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 day:text-amber-900">
+            <span>“{values.line}” describes how it looks — that's the Finish, which is what filters and profiles use.</span>
+            <button
+              type="button"
+              className="btn py-1 text-xs"
+              onClick={() => {
+                set("finish", lineFinish);
+                set("line", "");
+              }}
+            >
+              Set Finish to {lineFinish}
+            </button>
+          </p>
+        )}
       </div>
 
       <FormField label="Color name" value={values.colorName ?? ""} onChange={(v) => set("colorName", v)} provenance={prov.colorName} placeholder="Walnut" />

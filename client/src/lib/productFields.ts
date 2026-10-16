@@ -121,4 +121,25 @@ export const MATERIAL_PRESETS: { label: string; material: string; line: string; 
   { label: "ASA", material: "ASA", line: "" },
 ];
 
-export const LINE_SUGGESTIONS = ["Basic", "PLA+", "Silk", "Matte", "Wood", "Marble", "Sparkle", "High Speed", "Glow", "Translucent", "Dual Color", "Carbon Fiber"];
+/** Product lines - how the maker names the range. Looks (Silk, Translucent, ...) belong in Finish, not here. */
+export const LINE_SUGGESTIONS = ["Basic", "PLA+", "PLA Pro", "High Speed", "Hyper", "Tough", "Dual Color", "Tri Color", "Rainbow", "Gradient"];
+
+const LINE_WORD_FINISH: [RegExp, string][] = [
+  [/^silk$/i, "Silk"],
+  [/^matte?$/i, "Matte"],
+  [/^marble$/i, "Marble"],
+  [/^(glitter|sparkle|galaxy)$/i, "Glitter"],
+  [/^glow( in the dark)?$/i, "Glow in the Dark"],
+  [/^(translucent|transparent|clear)$/i, "Translucent"],
+  [/^(wood|wood fill)$/i, "Wood Fill"],
+  [/^(carbon fiber|cf)$/i, "Carbon Fiber"],
+  [/^(glass fiber|gf)$/i, "Glass Fiber"],
+  [/^iridescent$/i, "Iridescent"],
+  [/^glossy$/i, "Glossy"],
+];
+
+/** The Finish a line value really describes ("Translucent" -> "Translucent", "Wood" -> "Wood Fill"), or null for a real product line. */
+export function finishForLine(line: string | null | undefined): string | null {
+  const v = (line ?? "").trim();
+  return LINE_WORD_FINISH.find(([re]) => re.test(v))?.[1] ?? null;
+}
