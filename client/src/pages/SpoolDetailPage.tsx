@@ -128,7 +128,7 @@ export function SpoolDetailPage() {
             value={p.dryTempC ? `${p.dryTempC} °C${p.dryHours ? ` for ${p.dryHours} h` : ""}` : null}
             sources={[ps.dryTempC, ps.dryHours]}
           />
-          <Row label="Speed guidance" value={p.speedNote} sources={[ps.speedNote]} />
+          <Row label="Maker's print notes" value={p.speedNote} sources={[ps.speedNote]} />
           <Row
             label="Product page"
             value={

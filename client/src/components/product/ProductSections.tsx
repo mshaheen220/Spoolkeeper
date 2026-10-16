@@ -236,6 +236,7 @@ export function LookupControls({ form }: { form: ProductForm }) {
           onChange={(v) => set("productUrl", v)}
           provenance={prov.productUrl}
           placeholder="https://…"
+          help="A product page or a datasheet (PDF) link. Read page also follows a TDS linked from the page."
         />
         <button type="button" className="btn shrink-0" onClick={readPage} disabled={!values.productUrl?.trim() || readingPage}>
           {readingPage ? "Reading…" : "Read page"}

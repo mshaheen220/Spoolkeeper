@@ -50,7 +50,12 @@ export const DETAIL_FIELDS: FieldMeta[] = [
   { key: "bedMax", label: "Bed max", unit: "°C", type: "number" },
   { key: "dryTempC", label: "Drying temp", unit: "°C", type: "number", help: "Wet filament strings, pops and prints weak. Dry below the softening point or the spool warps." },
   { key: "dryHours", label: "Drying time", unit: "h", type: "number", step: 0.5 },
-  { key: "speedNote", label: "Speed guidance", type: "text", help: "The maker's printing-speed advice, kept verbatim for reference." },
+  {
+    key: "speedNote",
+    label: "Maker's print notes",
+    type: "text",
+    help: "The maker's advice - speed tiers, retraction, plate - kept for reference when calibrating.",
+  },
   { key: "productUrl", label: "Product page", type: "url" },
   { key: "datasheetUrl", label: "Datasheet", type: "url" },
   { key: "gtin", label: "Barcode (GTIN/EAN)", type: "text" },

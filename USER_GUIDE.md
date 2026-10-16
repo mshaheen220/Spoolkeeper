@@ -43,7 +43,7 @@ On **Spools → ＋ Add spool**:
 
 1. **Scan barcode** opens your phone camera. Photograph the barcode on the box or spool label. If the Open Filament Database knows it, brand, type, line, color and size fill in automatically. You can also type the number in.
 2. If there's no barcode, pick **brand**, a **material** shortcut (PLA, Silk PLA, Wood PLA, PETG, …) and the **color name**.
-3. Optionally paste the **product page URL** and tap **Read page**. Spoolkeeper looks for printing and bed temperatures, speed and drying advice, and quotes the text it found each value in. Many stores (Amazon especially) block this; you'll see a message saying so.
+3. Optionally paste the **product page URL** and tap **Read page**. If the page links a **technical datasheet (TDS) PDF**, Spoolkeeper reads that too; it skips safety sheets, RoHS/REACH and certificates. You can also paste a datasheet PDF link directly. Datasheets often hold what the page doesn't: Shore hardness, density, drying temperature, and retraction, speed-tier and plate advice. That advice is kept in **Maker's print notes** for reference when calibrating. Spoolkeeper looks for printing and bed temperatures, speed and drying advice, and quotes the text it found each value in. Many stores (Amazon especially) block this; you'll see a message saying so.
 4. Tap **🔎 Look up filament data**. The **Suggestions** card shows:
    - **Matched records**: which entry each source matched. Change it if it picked the wrong color, or choose "Don't use".
    - **Values**: every value each source suggests, with a badge for where it came from. Tap one to use it.
