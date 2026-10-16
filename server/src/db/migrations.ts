@@ -156,4 +156,12 @@ export const MIGRATIONS: string[] = [
   UPDATE products SET finish = 'Basic' WHERE finish = 'Standard';
   UPDATE field_sources SET value = '"Basic"' WHERE field = 'finish' AND value = '"Standard"';
   `,
+
+  /* 7: a filament can have several finishes (Translucent + Glitter) - single finish becomes a JSON list */ `
+  ALTER TABLE products ADD COLUMN finishes TEXT;
+  UPDATE products SET finishes = json_array(finish) WHERE finish IS NOT NULL;
+  UPDATE field_sources SET field = 'finishes', value = json_array(json_extract(value, '$'))
+    WHERE entity = 'product' AND field = 'finish' AND value IS NOT NULL AND value != 'null';
+  ALTER TABLE products DROP COLUMN finish;
+  `,
 ];

@@ -101,9 +101,10 @@ const TRAIT_FINISH: [string, Finish][] = [
   ["contains_metal", "Metal Fill"],
 ];
 
-export function ofdFinish(traits: Record<string, boolean> | undefined): Finish | null {
-  if (!traits) return null;
-  return TRAIT_FINISH.find(([t]) => traits[t])?.[1] ?? null;
+/** Every finish the variant's traits mark (silk + glitter, translucent + glitter, ...). */
+export function ofdFinishes(traits: Record<string, boolean> | undefined): Finish[] {
+  if (!traits) return [];
+  return [...new Set(TRAIT_FINISH.filter(([t]) => traits[t]).map(([, f]) => f))];
 }
 
 /** OFD marks co-extruded (side-by-side) and gradual-change (along the length) multi-color filaments with traits. */
@@ -152,7 +153,7 @@ export function suggestionsFromOfd(
     } else {
       add("colorHex", hexes[0]);
     }
-    add("finish", ofdFinish(variant.traits));
+    add("finishes", ofdFinishes(variant.traits).join(",") || null);
     add("ofdId", variant.id);
   }
   add("density", filament.density);

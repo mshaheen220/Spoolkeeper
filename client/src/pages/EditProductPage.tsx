@@ -100,11 +100,17 @@ function EditForm({ product, sources }: { product: Product; sources: Record<stri
         </p>
       )}
 
+      {form.problems.map((msg) => (
+        <p key={msg} role="alert" className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-200 day:text-amber-900">
+          {msg}
+        </p>
+      ))}
+
       <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-ink-800 bg-ink-950/95 px-4 py-3 backdrop-blur">
         <Link to={backTo} className="btn py-3">
           Cancel
         </Link>
-        <button type="submit" className="btn-primary flex-1 py-3 text-base" disabled={!ready || saving}>
+        <button type="submit" className="btn-primary flex-1 py-3 text-base" disabled={form.problems.length > 0 || !ready || saving}>
           {saving ? "Saving…" : changedCount ? `Save ${changedCount} change${changedCount === 1 ? "" : "s"}` : "No changes"}
         </button>
       </div>

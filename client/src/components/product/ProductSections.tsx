@@ -10,6 +10,8 @@ import {
   GRID_FIELDS,
   finishForLine,
   LINE_SUGGESTIONS,
+  splitFinishes,
+  toggleFinish,
   MATERIAL_PRESETS,
   SHORE_HELP,
   type ProductFieldKey,
@@ -60,7 +62,7 @@ export function IdentityFields({ form }: { form: ProductForm }) {
                 onClick={() => {
                   set("material", p.material);
                   set("line", p.line);
-                  if (p.finish) set("finish", p.finish);
+                  if (p.finish) set("finishes", p.finish);
                 }}
                 className={`rounded-full border px-3 py-1 text-sm ${active ? "border-accent-500 bg-accent-500/15 text-ink-50" : "border-ink-700 text-ink-300 hover:border-ink-500"}`}
               >
@@ -71,7 +73,7 @@ export function IdentityFields({ form }: { form: ProductForm }) {
         </div>
         {/* Type, Line and Finish sit together: Line (the maker's range name) and
             Finish (how it looks) are easy to confuse, so each says which it is. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3">
           <ComboField
             label="Type"
             value={values.material}
@@ -92,20 +94,20 @@ export function IdentityFields({ form }: { form: ProductForm }) {
             help="The maker's range name, if it has one."
             newLabel="Use line"
           />
-          <FinishSelect form={form} className="col-span-2 sm:col-span-1" />
         </div>
-        {lineFinish && values.finish !== lineFinish && (
+        <FinishPicker form={form} className="mt-3" />
+        {lineFinish && !splitFinishes(values.finishes).includes(lineFinish) && (
           <p role="status" className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 day:text-amber-900">
-            <span>“{values.line}” describes how it looks — that's the Finish, which is what filters and profiles use.</span>
+            <span>“{values.line}” describes how it looks — that's a Finish, which is what filters and profiles use.</span>
             <button
               type="button"
               className="btn py-1 text-xs"
               onClick={() => {
-                set("finish", lineFinish);
+                set("finishes", toggleFinish(splitFinishes(values.finishes), lineFinish).join(","));
                 set("line", "");
               }}
             >
-              Set Finish to {lineFinish}
+              Move to Finish: {lineFinish}
             </button>
           </p>
         )}
@@ -116,26 +118,41 @@ export function IdentityFields({ form }: { form: ProductForm }) {
   );
 }
 
-/** How the filament looks: Basic, Silk, Matte... - shown next to Type and Line. */
-function FinishSelect({ form, className }: { form: ProductForm; className?: string }) {
+/**
+ * How the filament looks - several can apply (Translucent + Glitter). Chips
+ * rather than a select, so every option is visible and multiple can be on.
+ */
+function FinishPicker({ form, className }: { form: ProductForm; className?: string }) {
   const { values, prov, set } = form;
   const id = useId();
+  const selected = splitFinishes(values.finishes);
   return (
-    <div className={className}>
+    <div className={className} role="group" aria-labelledby={id} aria-describedby={`${id}-help`}>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-medium text-ink-200">
+        <span id={id} className="text-sm font-medium text-ink-200">
           Finish
-        </label>
-        {prov.finish && values.finish && <SourceBadge compact source={prov.finish.source} sourceRef={prov.finish.sourceRef} />}
+        </span>
+        {prov.finishes && selected.length > 0 && <SourceBadge compact source={prov.finishes.source} sourceRef={prov.finishes.sourceRef} />}
       </div>
-      <select id={id} className="field" value={values.finish ?? ""} onChange={(e) => set("finish", e.target.value)} aria-describedby={`${id}-help`}>
-        <option value="">Not set</option>
-        {FINISHES.map((f) => (
-          <option key={f}>{f}</option>
-        ))}
-      </select>
+      <div className="flex flex-wrap gap-1.5">
+        {FINISHES.map((f) => {
+          const on = selected.includes(f);
+          return (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={on}
+              onClick={() => set("finishes", toggleFinish(selected, f).join(","))}
+              className={`rounded-full border px-2.5 py-1 text-xs ${on ? "border-accent-500 bg-accent-500/15 text-ink-50" : "border-ink-700 text-ink-300 hover:border-ink-500"}`}
+            >
+              {on && <span aria-hidden>✓ </span>}
+              {f}
+            </button>
+          );
+        })}
+      </div>
       <p id={`${id}-help`} className="mt-1 text-xs leading-snug text-ink-400" title={FINISH_HELP}>
-        How it looks: Basic, Silk, Matte…
+        How it looks — pick every one that applies (e.g. Translucent + Glitter).
       </p>
     </div>
   );

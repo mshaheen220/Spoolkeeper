@@ -116,7 +116,13 @@ export function SuggestionsPanel({ result, selection, onSelect, options, values,
                               </span>
                             )}
                             <span className="truncate font-medium">
-                              {f.key === "multiColorDirection" ? (DIRECTION_LABELS[o.value]?.label ?? o.value) : f.type === "colors" ? o.value.split(",").join(" ") : o.value}
+                              {f.key === "multiColorDirection"
+                                ? (DIRECTION_LABELS[o.value]?.label ?? o.value)
+                                : f.type === "colors"
+                                  ? o.value.split(",").join(" ")
+                                  : f.type === "finishes"
+                                    ? o.value.split(",").join(" + ")
+                                    : o.value}
                               {f.unit && ` ${f.unit}`}
                             </span>
                             {active && <span aria-hidden>✓</span>}

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { readProductPage, searchEnrichment, type Candidate, type EnrichResult, type Suggestion } from "../api/enrich";
 import type { SourceMap } from "../api/inventory";
 import { DETAIL_FIELDS, ID_FIELDS, type ProductFieldKey } from "../lib/productFields";
+import { splitHexes } from "../lib/colors";
 import { agreedFills, defaultSelection, optionsByField, type Selection } from "../lib/suggestions";
 import type { Source } from "../types";
 
@@ -116,6 +117,11 @@ export function useProductForm(initialValues: Values, initialProv: Provenance = 
     for (const { field, option } of fills) applySuggestion(field, option.suggestions[0], option.value);
   };
 
+  /** Problems that would lose data on save (shown instead of silently dropping it). */
+  const problems: string[] = [];
+  if (values.multiColorDirection && splitHexes(values.colorHexes ?? "").length < 2)
+    problems.push("A multi-color direction is set but fewer than 2 colors are listed. Add the colors in Color & flexibility, or switch back to Single.");
+
   /**
    * The product body for the API plus provenance, keyed "product.<field>".
    * With `baseline`, only fields that differ from it are included, and
@@ -158,6 +164,7 @@ export function useProductForm(initialValues: Values, initialProv: Provenance = 
     applySuggestion,
     fillAgreed,
     productBody,
+    problems,
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractFromText, htmlToText, jsonLdProducts } from "./productPage";
+import { extractFromText, extractLooks, htmlToText, jsonLdProducts } from "./productPage";
 
 const ref = "https://example.com/products/wood-pla";
 const values = (text: string) => Object.fromEntries(extractFromText(text, ref).map((s) => [s.field, s.value]));
@@ -51,5 +51,48 @@ Drying: 50℃ for 4-6 hours`),
       <style>.x{}</style><p>Bed&nbsp;temp: 55&deg;C</p></html>`;
     expect(jsonLdProducts(html)[0]).toMatchObject({ name: "Wood PLA", gtin13: "6936601204540" });
     expect(htmlToText(html)).toContain("Bed temp: 55°C");
+  });
+});
+
+describe("Ziro Fast Gradient Twinkling Translucent - Rose (real product text)", () => {
+  // From ziro3d.com's Shopify product JSON, 2026-10-16 - note the encoding-mangled "?C".
+  const title = "ZIRO Fast Gradient Twinkling Translucent PLA Filament 1.75mm, Flower Series-Rose";
+  const body = `[ZIRO Flower Series]- The ZIRO "Rose" combined multiple bright colors with sparkling translucent feature. Higher-cost production technology to achieve the true faster color changing aim. The twinkle & translucent PLA base offers a stuning and dazzling look.
+[Hight Quality PLA]- Completely drying for 24hrs before vacuum seal.
+[1.75MM Filament Accuracy ]- Suggested printing settings, nozzle: 190-220?C, bed: 50-60?C, speed: 30-90 mm/s
+[Fits For Most FDM Printers]- Spool diameter: 7.99inch, spool width: 2.48inch, hub hole diameter: 2.36inch. (empty reel's weight is about 160-165 g)`;
+
+  it("reads temperatures written with a mangled degree sign, speed and the empty reel weight", () => {
+    expect(values(`${title}\n${body}`)).toEqual({
+      nozzleMin: 190,
+      nozzleMax: 220,
+      bedMin: 50,
+      bedMax: 60,
+      speedNote: "speed: 30-90 mm/s",
+      spoolWeightG: 163,
+    });
+  });
+
+  it("doesn't mistake the factory drying note for drying advice", () => {
+    expect(values(body)).not.toHaveProperty("dryTempC");
+  });
+
+  it("reads both finishes and the gradient", () => {
+    const looks = Object.fromEntries(extractLooks(`${title}\n${body}`, ref).map((s) => [s.field, s]));
+    expect(looks.finishes.value).toBe("Glitter,Translucent");
+    expect(looks.finishes.note).toMatch(/twinkl|sparkl/);
+    expect(looks.multiColorDirection.value).toBe("longitudinal");
+  });
+
+  it("tells side-by-side multi-color apart", () => {
+    const looks = extractLooks("Silk PLA Dual Color Red & Blue, co-extruded", ref);
+    expect(looks.map((s) => [s.field, s.value])).toEqual([
+      ["finishes", "Silk"],
+      ["multiColorDirection", "coaxial"],
+    ]);
+  });
+
+  it("still ignores 'nozzle: 0.4 mm'", () => {
+    expect(values("Compatible nozzle: 0.4 mm and up")).toEqual({});
   });
 });

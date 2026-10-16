@@ -26,7 +26,9 @@ const isHex = (s: string) => /^#[0-9a-fA-F]{6}$/.test(s);
  */
 export function ColorEditor({ colorHex, colorHexes, direction, prov, set }: Props) {
   const hexes = splitHexes(colorHexes);
-  const multi = hexes.length >= 2 || colorHexes.trim() !== "";
+  // A direction (e.g. "along the length" read from a product page) means multi-color
+  // even before any colors are entered - show the editor so they get added.
+  const multi = hexes.length >= 2 || colorHexes.trim() !== "" || direction !== "";
   const main = effectiveMain(colorHex, hexes);
 
   const setHexes = (list: string[]) => set("colorHexes", list.join(","));
@@ -90,6 +92,11 @@ export function ColorEditor({ colorHex, colorHexes, direction, prov, set }: Prop
             {prov.colorHexes && <SourceBadge compact source={prov.colorHexes.source} sourceRef={prov.colorHexes.sourceRef} />}
           </div>
 
+          {hexes.length < 2 && (
+            <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 day:text-amber-900">
+              Add the colors you see on the spool — at least 2. Product pages rarely list them, so they're up to you.
+            </p>
+          )}
           <ul className="space-y-2" aria-label="Filament colors">
             {hexes.map((h, i) => {
               const isMain = h === main;
@@ -141,7 +148,7 @@ export function ColorEditor({ colorHex, colorHexes, direction, prov, set }: Prop
               );
             })}
           </ul>
-          <button type="button" className="btn py-1 text-xs" disabled={hexes.length >= MAX_COLORS} onClick={() => setHexes([...hexes, "#FFFFFF"])}>
+          <button type="button" className="btn py-1 text-xs" disabled={hexes.length >= MAX_COLORS} onClick={() => setHexes([...hexes, hexes.length === 0 && isHex(colorHex) ? colorHex.toUpperCase() : "#FFFFFF"])}>
             ＋ Add color
           </button>
 

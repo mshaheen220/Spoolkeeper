@@ -251,8 +251,14 @@ export function IntakePage() {
         </p>
       )}
 
+      {form.problems.map((msg) => (
+        <p key={msg} role="alert" className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-200 day:text-amber-900">
+          {msg}
+        </p>
+      ))}
+
       <div className="sticky bottom-0 -mx-4 border-t border-ink-800 bg-ink-950/95 px-4 py-3 backdrop-blur">
-        <button type="submit" className="btn-primary w-full py-3 text-base" disabled={!identityReady || saving}>
+        <button type="submit" className="btn-primary w-full py-3 text-base" disabled={form.problems.length > 0 || !identityReady || saving}>
           {saving ? "Saving…" : `Save ${Number(purchase.quantity) > 1 ? `${purchase.quantity} spools` : "spool"}`}
         </button>
       </div>

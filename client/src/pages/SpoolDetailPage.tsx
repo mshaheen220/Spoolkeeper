@@ -115,7 +115,7 @@ export function SpoolDetailPage() {
               sources={[ps.colorHexes, ps.multiColorDirection]}
             />
           )}
-          <Row label="Finish" value={p.finish} sources={[ps.finish]} />
+          <Row label="Finish" value={p.finishes?.join(", ")} sources={[ps.finishes]} />
           <Row label="Shore hardness" value={p.shoreHardness != null ? `${p.shoreHardness}${p.shoreScale ?? ""}` : null} sources={[ps.shoreHardness, ps.shoreScale]} />
           <Row label="Diameter" value={p.diameterMm ? `${p.diameterMm} mm` : null} sources={[ps.diameterMm]} />
           <Row label="Density" value={p.density ? `${p.density} g/cm³` : null} sources={[ps.density]} />

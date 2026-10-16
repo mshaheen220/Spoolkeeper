@@ -5,7 +5,7 @@ import { z } from "zod";
 import { config } from "../config";
 import { getDb } from "../db";
 import { createProduct, createSpool, findMatchingProduct, recordSources, type Product } from "../db/repo";
-import { finishFromWord } from "../lib/appearance";
+import { finishesFromText } from "../lib/appearance";
 import { asyncHandler, HttpError } from "../lib/http";
 import { parseOrcaFilament, readUserFilamentProfiles, type OrcaImportRow } from "../lib/orca/userProfiles";
 
@@ -101,14 +101,15 @@ orcaImportRouter.post(
             nozzleMax: profile.nozzleMax,
           };
           // Finish comes from words in the name (or the line the user confirmed), so it's inferred, not imported.
-          const finish = finishFromWord(identity.line) ?? profile.finish;
-          product = createProduct({ ...values, finish });
+          const fromLine = finishesFromText(identity.line);
+          const finishes = fromLine.length ? fromLine : profile.finishes;
+          product = createProduct({ ...values, finishes: finishes.length ? finishes : null });
           created = true;
           recordSources("product", product.id, [
             ...Object.entries(values)
               .filter(([k, v]) => v != null && k !== "vendor")
               .map(([field, value]) => ({ field, value, source: "orca_import" as const, sourceRef: profile.fileName })),
-            ...(finish ? [{ field: "finish", value: finish, source: "inferred" as const, sourceRef: `from the name “${profile.profileName}”` }] : []),
+            ...(finishes.length ? [{ field: "finishes", value: finishes, source: "inferred" as const, sourceRef: `from the name “${profile.profileName}”` }] : []),
           ]);
         }
         insertProfile.run(product.id, profile.fileName, profile.profileName, profile.inherits, profile.generatedBy, JSON.stringify(profile.settings));

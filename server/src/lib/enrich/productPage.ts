@@ -1,3 +1,4 @@
+import { finishesFromText } from "../appearance";
 import { HttpError } from "../http";
 import { fetchText } from "./fetch";
 import type { Candidate, Suggestion } from "./types";
@@ -54,8 +55,10 @@ export function jsonLdProducts(html: string): JsonLdProduct[] {
   return out;
 }
 
-// ° (degree), º (ordinal), ˚ (ring above - Polymaker uses it), ℃.
-const DEG = "\\s*(?:°|º|˚|℃|deg(?:rees)?)?\\s*C?";
+// ° (degree), º (ordinal), ˚ (ring above - Polymaker uses it), ℃, and "?C" -
+// a degree sign mangled by a bad encoding (Ziro's store prints "190-220?C").
+const DEG_SIGN = "(?:°|º|˚|℃|\\?(?=\\s*C))";
+const DEG = `\\s*(?:${DEG_SIGN}|deg(?:rees)?)?\\s*C?`;
 const TO = "\\s*(?:-|–|—|~|to)\\s*";
 
 function snippet(text: string, index: number, length: number): string {
@@ -70,15 +73,15 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
   const add = (field: Suggestion["field"], value: number | string, m: RegExpMatchArray) =>
     out.push({ field, value, source: "product_url", sourceRef: ref, note: `“${snippet(text, m.index ?? 0, m[0].length)}”` });
 
-  // Nozzle: "Printing Temperature: 190-220°C", "Nozzle temp 200℃~230℃", "Extrusion Temperature 210 °C"
-  const nozzleRange = text.match(
-    new RegExp(`(?:print(?:ing)?|nozzle|extru(?:der|sion|ding))\\s*temp(?:erature)?s?[^0-9\\n]{0,20}(\\d{3})${DEG}${TO}(\\d{3})${DEG}`, "i"),
-  );
+  // Nozzle: "Printing Temperature: 190-220°C", "Nozzle temp 200℃~230℃", "Extrusion Temperature 210 °C",
+  // "nozzle: 190-220?C". Three-digit values in a plausible range only, so "nozzle: 0.4 mm" can't match.
+  const NOZZLE = "(?:(?:print(?:ing)?|extru(?:der|sion|ding))\\s*temp(?:erature)?s?|nozzle(?:\\s*temp(?:erature)?s?)?)";
+  const nozzleRange = text.match(new RegExp(`${NOZZLE}[^0-9\\n]{0,20}(\\d{3})${DEG}${TO}(\\d{3})${DEG}`, "i"));
   if (nozzleRange && inRange(+nozzleRange[1], 150, 350) && inRange(+nozzleRange[2], 150, 350)) {
     add("nozzleMin", Math.min(+nozzleRange[1], +nozzleRange[2]), nozzleRange);
     add("nozzleMax", Math.max(+nozzleRange[1], +nozzleRange[2]), nozzleRange);
   } else {
-    const single = text.match(new RegExp(`(?:print(?:ing)?|nozzle|extru(?:der|sion|ding))\\s*temp(?:erature)?s?[^0-9\\n]{0,20}(\\d{3})${DEG}`, "i"));
+    const single = text.match(new RegExp(`${NOZZLE}[^0-9\\n]{0,20}(\\d{3})${DEG}`, "i"));
     if (single && inRange(+single[1], 150, 350)) {
       add("nozzleMin", +single[1], single);
       add("nozzleMax", +single[1], single);
@@ -89,7 +92,9 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
   // Without the word "temp", require a degree sign so "plate 1 of 2" isn't read as a temperature.
   const bed =
     text.match(new RegExp(`(?:heat(?:ed|ing)?\\s*)?(?:bed|plate|platform)\\s*temp(?:erature)?s?[^0-9\\n]{0,20}(\\d{1,3})${DEG}(?:${TO}(\\d{1,3})${DEG})?`, "i")) ??
-    text.match(/(?:heat(?:ed|ing)?\s*)?(?:bed|plate|platform)[\s:]{0,3}(\d{2,3})\s*(?:°|º|˚|℃)\s*C?(?:\s*(?:-|–|—|~|to)\s*(\d{2,3})\s*(?:°|º|˚|℃)\s*C?)?/i);
+    // "bed: 50-60?C": a range needs the degree sign only after its second number.
+    text.match(new RegExp(`(?:heat(?:ed|ing)?\\s*)?(?:bed|plate|platform)[\\s:]{0,3}(\\d{2,3})(?:\\s*${DEG_SIGN}\\s*C?)?${TO}(\\d{2,3})\\s*${DEG_SIGN}\\s*C?`, "i")) ??
+    text.match(new RegExp(`(?:heat(?:ed|ing)?\\s*)?(?:bed|plate|platform)[\\s:]{0,3}(\\d{2,3})\\s*${DEG_SIGN}\\s*C?`, "i"));
   const bedLo = bed ? Math.min(+bed[1], bed[2] ? +bed[2] : +bed[1]) : NaN;
   const bedHi = bed ? Math.max(+bed[1], bed[2] ? +bed[2] : +bed[1]) : NaN;
   // A real bed spec tops out at 35 °C or more; "raise bed temp in 5–10 °C steps" doesn't.
@@ -112,6 +117,14 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
     if (inRange(hours, 1, 48)) add("dryHours", hours, dry);
   }
 
+  // "empty reel's weight is about 160-165 g", "spool weight: 130g"
+  const spool = text.match(/(?:empty\s+(?:reel|spool)(?:'s|’s)?\s+weight|(?:reel|spool)\s+weight)[^0-9\n]{0,25}(\d{2,3})(?:\s*(?:-|–|~|to)\s*(\d{2,3}))?\s*g\b/i);
+  if (spool) {
+    const lo = +spool[1];
+    const hi = spool[2] ? +spool[2] : lo;
+    if (inRange(lo, 40, 400) && inRange(hi, 40, 400)) add("spoolWeightG", Math.round((lo + hi) / 2), spool);
+  }
+
   const density = text.match(/density[^0-9\n]{0,25}(\d\.\d{1,3})\s*g\s*\/\s*cm/i);
   if (density && inRange(+density[1], 0.8, 2.5)) add("density", +density[1], density);
 
@@ -120,6 +133,33 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
 
 function inRange(n: number, lo: number, hi: number) {
   return Number.isFinite(n) && n >= lo && n <= hi;
+}
+
+/**
+ * Finishes and multi-color layout from the product's own title and
+ * description (not the whole page - store menus list other products'
+ * "Silk PLA", "Matte PLA"...). Each comes with the words it was read from.
+ */
+export function extractLooks(productText: string, ref: string): Suggestion[] {
+  const out: Suggestion[] = [];
+  const finishes = finishesFromText(productText);
+  if (finishes.length) {
+    const words = [...new Set(productText.match(/\b(silk\w*|matte?|glossy|marble\w*|glitter\w*|sparkl\w*|twinkl\w*|shimmer\w*|galaxy|glow\w*|translucent|transparent|iridescent|pearl\w*|wood\w*|carbon fib\w+)\b/gi)?.map((w) => w.toLowerCase()) ?? [])];
+    out.push({ field: "finishes", value: finishes.join(","), source: "product_url", sourceRef: ref, note: `from “${words.slice(0, 5).join("”, “")}” in the description` });
+  }
+  // Side by side (dual/tri-color, co-extruded) vs. changing along the length (gradient, rainbow, color-changing).
+  const coax = productText.match(/\b(dual[- ]colou?r|tri[- ]colou?r|two[- ]tone|three[- ]colou?r|co-?extru\w*)/i);
+  const along = productText.match(/\b(gradient|rainbow|colou?r[- ]?(?:changing|change|shift\w*)|multi[- ]?colou?r(?:ed)?)/i);
+  const dir = coax ? { value: "coaxial", m: coax } : along ? { value: "longitudinal", m: along } : null;
+  if (dir)
+    out.push({
+      field: "multiColorDirection",
+      value: dir.value,
+      source: "product_url",
+      sourceRef: ref,
+      note: `“${snippet(productText, dir.m.index ?? 0, dir.m[0].length)}” - set its colors in the color editor`,
+    });
+  return out;
 }
 
 /** Shopify stores expose clean product data at /products/<handle>.json. */
@@ -170,7 +210,9 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
     .join("\n");
 
   const ref = url.toString();
-  const suggestions = dedupeByField(extractFromText(corpus, ref));
+  const pageTitle = shopify?.title ?? ld?.name ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? "";
+  const productText = [pageTitle, shopify?.text, ld?.description].filter(Boolean).join("\n");
+  const suggestions = dedupeByField([...extractFromText(corpus, ref), ...extractLooks(productText, ref)]);
   const gtin = ld?.gtin13 ?? ld?.gtin12 ?? ld?.gtin;
   if (gtin) suggestions.push({ field: "gtin", value: String(gtin), source: "product_url", sourceRef: ref, note: "from the page's product data" });
 

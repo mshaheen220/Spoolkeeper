@@ -19,7 +19,8 @@ export interface ProductFields {
   colorHex: string | null;
   colorHexes: string[] | null;
   multiColorDirection: ColorDirection | null;
-  finish: string | null;
+  /** Every look it has, e.g. ["Glitter", "Translucent"]. */
+  finishes: string[] | null;
   shoreScale: "A" | "D" | null;
   shoreHardness: number | null;
   diameterMm: number | null;

@@ -103,7 +103,7 @@ function optNum(v: unknown): number | null {
 const r = (n: number, d = 3) => String(Math.round(n * 10 ** d) / 10 ** d);
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-const isWoodPla = (p: Product) => p.material === "PLA" && (p.finish === "Wood Fill" || /wood/i.test(`${p.line ?? ""} ${p.colorName ?? ""}`));
+const isWoodPla = (p: Product) => p.material === "PLA" && (!!p.finishes?.includes("Wood Fill") || /wood/i.test(`${p.line ?? ""} ${p.colorName ?? ""}`));
 
 /** The user's known-good reference: Sunlu Walnut Wood PLA. A sanity check, never a default. */
 export const WOOD_PLA_REFERENCE = { temp: 210, retraction: 1.2, zHopType: "Slope Lift", wipeDistance: 0.8 };

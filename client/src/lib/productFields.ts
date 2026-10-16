@@ -6,7 +6,7 @@ export interface FieldMeta {
   key: ProductFieldKey;
   label: string;
   unit?: string;
-  type: "text" | "number" | "url" | "color" | "colors" | "select";
+  type: "text" | "number" | "url" | "color" | "colors" | "select" | "finishes";
   step?: number;
   /** Short "why this matters" help - most profiles start as guesses, so explain each value. */
   help?: string;
@@ -18,7 +18,7 @@ export const DETAIL_FIELDS: FieldMeta[] = [
   { key: "colorHex", label: "Color", type: "color", help: "Shown in OrcaSlicer's filament dropdown and on the 3D preview." },
   { key: "colorHexes", label: "Colors (multi-color)", type: "colors" },
   { key: "multiColorDirection", label: "Color direction", type: "select" },
-  { key: "finish", label: "Finish", type: "select" },
+  { key: "finishes", label: "Finish", type: "finishes" },
   { key: "shoreScale", label: "Shore scale", type: "select" },
   { key: "shoreHardness", label: "Shore hardness", type: "number" },
   {
@@ -62,7 +62,7 @@ const CUSTOM_EDITORS: ProductFieldKey[] = [
   "colorHex",
   "colorHexes",
   "multiColorDirection",
-  "finish",
+  "finishes",
   "shoreScale",
   "shoreHardness",
   "diameterMm",
@@ -138,6 +138,25 @@ const LINE_WORD_FINISH: [RegExp, string][] = [
   [/^glossy$/i, "Glossy"],
   [/^(basic|standard)$/i, "Basic"],
 ];
+
+/** Form state keeps finishes as "Glitter,Translucent", like colorHexes. */
+export const splitFinishes = (s: string | null | undefined) =>
+  (s ?? "")
+    .split(",")
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+/**
+ * Toggle one finish in a list. Basic means plain, so it can't sit next to
+ * Silk or Glitter: picking Basic clears the others, picking another clears
+ * Basic. Kept in FINISHES order.
+ */
+export function toggleFinish(list: string[], f: string): string[] {
+  const has = list.includes(f);
+  let next = has ? list.filter((x) => x !== f) : f === "Basic" ? ["Basic"] : [...list.filter((x) => x !== "Basic"), f];
+  next = FINISHES.filter((x) => next.includes(x));
+  return next;
+}
 
 /** The Finish a line value really describes ("Translucent" -> "Translucent", "Wood" -> "Wood Fill"), or null for a real product line. */
 export function finishForLine(line: string | null | undefined): string | null {

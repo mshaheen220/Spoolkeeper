@@ -31,15 +31,16 @@ export interface SpoolmanDbFilament {
   glow?: boolean;
 }
 
-/** SpoolmanDB spreads appearance over finish/pattern/glow/translucent; the most distinctive one wins. */
-export function spoolmanDbFinish(row: SpoolmanDbFilament): Finish | null {
-  if (row.glow) return "Glow in the Dark";
-  if (row.pattern === "sparkle") return "Glitter";
-  if (row.pattern === "marble") return "Marble";
-  if (row.translucent) return "Translucent";
-  if (row.finish === "matte") return "Matte";
-  if (row.finish === "glossy") return "Glossy";
-  return null;
+/** SpoolmanDB spreads appearance over finish/pattern/glow/translucent flags; each one that's set is a finish. */
+export function spoolmanDbFinishes(row: SpoolmanDbFilament): Finish[] {
+  const out: Finish[] = [];
+  if (row.finish === "matte") out.push("Matte");
+  if (row.finish === "glossy") out.push("Glossy");
+  if (row.pattern === "marble") out.push("Marble");
+  if (row.pattern === "sparkle") out.push("Glitter");
+  if (row.glow) out.push("Glow in the Dark");
+  if (row.translucent) out.push("Translucent");
+  return out;
 }
 
 /** How well a SpoolmanDB row matches the query; 0 = not a candidate. */
@@ -80,7 +81,7 @@ export function suggestionsFromSpoolmanDb(row: SpoolmanDbFilament): Suggestion[]
   } else {
     add("colorHex", hexColor(row.color_hex));
   }
-  add("finish", spoolmanDbFinish(row));
+  add("finishes", spoolmanDbFinishes(row).join(",") || null);
   add("density", row.density);
   add("diameterMm", row.diameter);
   add("netWeightG", row.weight);

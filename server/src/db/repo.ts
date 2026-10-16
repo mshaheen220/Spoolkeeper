@@ -21,7 +21,7 @@ export interface Product {
   colorHex: string | null;
   colorHexes: string[] | null;
   multiColorDirection: "coaxial" | "longitudinal" | null;
-  finish: string | null;
+  finishes: string[] | null;
   shoreScale: "A" | "D" | null;
   shoreHardness: number | null;
   diameterMm: number;
@@ -74,7 +74,7 @@ const PRODUCT_COLUMNS: Record<Exclude<keyof ProductInput, "vendor">, string> = {
   colorHex: "color_hex",
   colorHexes: "color_hexes",
   multiColorDirection: "multi_color_direction",
-  finish: "finish",
+  finishes: "finishes",
   shoreScale: "shore_scale",
   shoreHardness: "shore_hardness",
   diameterMm: "diameter_mm",
@@ -134,6 +134,7 @@ function rowToProduct(r: Row): Product {
   const out: Record<string, unknown> = { id: r.id };
   for (const [key, col] of Object.entries(PRODUCT_COLUMNS)) out[key] = r[col] ?? null;
   out.colorHexes = typeof r.color_hexes === "string" ? (JSON.parse(r.color_hexes) as string[]) : null;
+  out.finishes = typeof r.finishes === "string" ? (JSON.parse(r.finishes) as string[]) : null;
   const vendor: Vendor = { id: r.vendor_id as number, name: r.v_name as string, website: r.v_website as string | null, notes: r.v_notes as string | null };
   const product = out as unknown as Product;
   product.vendor = vendor;

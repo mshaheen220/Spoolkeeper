@@ -17,18 +17,20 @@ const STANDARD_DIAMETER = 1.75;
  * but only when the finish is actually set, so it never disappears entirely.
  */
 function materialLabel(s: Spool): string {
-  const { material, line, finish } = s.product;
-  if (!line || (finish && finishForLine(line) === finish)) return material;
+  const { material, line } = s.product;
+  const lineFinish = finishForLine(line);
+  if (!line || (lineFinish && finishesOf(s).includes(lineFinish))) return material;
   return line.toUpperCase().includes(material.toUpperCase()) ? line : `${material} · ${line}`;
 }
 
-const finishOf = (s: Spool) => s.product.finish || null;
+const finishesOf = (s: Spool): string[] => s.product.finishes ?? [];
+const finishLabel = (s: Spool) => finishesOf(s).join(", ") || null;
 
 const COMPARE: Record<SortKey, (a: Spool, b: Spool) => number> = {
   color: (a, b) => colorSortKey(a.product) - colorSortKey(b.product),
   brand: (a, b) => a.product.vendor.name.localeCompare(b.product.vendor.name, undefined, { sensitivity: "base" }),
   material: (a, b) => materialLabel(a).localeCompare(materialLabel(b)),
-  finish: (a, b) => (finishOf(a) ?? "~").localeCompare(finishOf(b) ?? "~"), // unset finishes sort last
+  finish: (a, b) => (finishLabel(a) ?? "~").localeCompare(finishLabel(b) ?? "~"), // unset finishes sort last
   id: (a, b) => a.id - b.id,
 };
 
@@ -116,7 +118,7 @@ export function SpoolsPage() {
   const options = useMemo(
     () => ({
       materials: [...new Set(all.map((s) => s.product.material))].sort(),
-      finishes: [...new Set(all.map(finishOf).filter((f): f is string => !!f))].sort(),
+      finishes: [...new Set(all.flatMap(finishesOf))].sort(),
       colors: FAMILIES.filter((f) => all.some((s) => colorFamilies(s.product).includes(f))),
       brands: [...new Set(all.map((s) => s.product.vendor.name))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
     }),
@@ -128,10 +130,10 @@ export function SpoolsPage() {
     const list = all.filter(
       (s) =>
         (!material || s.product.material === material) &&
-        (!finish || finishOf(s) === finish) &&
+        (!finish || finishesOf(s).includes(finish)) &&
         (!color || colorFamilies(s.product).includes(color)) &&
         (!brand || s.product.vendor.name === brand) &&
-        (!needle || `${s.product.displayName} #${s.id} ${s.store ?? ""} ${s.product.finish ?? ""}`.toLowerCase().includes(needle)),
+        (!needle || `${s.product.displayName} #${s.id} ${s.store ?? ""} ${finishesOf(s).join(" ")}`.toLowerCase().includes(needle)),
     );
     // Stable tie-breaks: brand, then material, then color, so equal keys still read in a sensible order.
     const tie = (a: Spool, b: Spool) => COMPARE.brand(a, b) || COMPARE.material(a, b) || COMPARE.color(a, b) || a.id - b.id;
@@ -286,7 +288,7 @@ export function SpoolsPage() {
                             <span className="block truncate font-medium">{p.colorName ?? "—"}</span>
                             {/* On phones, finish and #ID move under the color instead of their own columns. */}
                             <span className="block truncate text-xs text-ink-400 sm:hidden">
-                              {[finishOf(s), `#${s.id}`, odd ? `${p.diameterMm} mm` : null, s.archived ? "archived" : null].filter(Boolean).join(" · ")}
+                              {[finishLabel(s), `#${s.id}`, odd ? `${p.diameterMm} mm` : null, s.archived ? "archived" : null].filter(Boolean).join(" · ")}
                             </span>
                             {(odd || s.archived) && (
                               <span className="hidden truncate text-xs text-ink-400 sm:block">
@@ -298,7 +300,7 @@ export function SpoolsPage() {
                       </td>
                       <td className="truncate px-2 py-2.5 text-ink-200">{p.vendor.name}</td>
                       <td className="truncate px-2 py-2.5 text-ink-200">{materialLabel(s)}</td>
-                      <td className="hidden truncate px-2 py-2.5 text-ink-300 sm:table-cell">{finishOf(s) ?? ""}</td>
+                      <td className="hidden truncate px-2 py-2.5 text-ink-300 sm:table-cell" title={finishLabel(s) ?? undefined}>{finishLabel(s) ?? ""}</td>
                       <td className="hidden py-2.5 pr-3 pl-2 font-mono text-xs text-ink-400 sm:table-cell">#{s.id}</td>
                     </tr>
                   );

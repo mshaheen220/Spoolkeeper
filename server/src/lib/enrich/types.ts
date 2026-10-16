@@ -7,7 +7,8 @@ export type EnrichField =
   /** Comma-separated "#RRGGBB,#RRGGBB" so it compares and displays like other values. */
   | "colorHexes"
   | "multiColorDirection"
-  | "finish"
+  /** Comma-separated finish names ("Translucent,Glitter"), like colorHexes. */
+  | "finishes"
   | "shoreScale"
   | "shoreHardness"
   | "density"

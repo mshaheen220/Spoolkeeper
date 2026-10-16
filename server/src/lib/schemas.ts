@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COLOR_DIRECTIONS, FINISHES, SHORE_SCALES } from "./appearance";
+import { COLOR_DIRECTIONS, FINISHES, normalizeFinishes, SHORE_SCALES } from "./appearance";
 
 // Request bodies. Optional fields accept null so the client can clear a
 // value; empty strings from untouched form inputs are normalized to null.
@@ -36,8 +36,19 @@ export const productFields = {
       .nullish(),
   ),
   multiColorDirection: z.preprocess(blankToNull, z.enum(COLOR_DIRECTIONS).nullish()),
-  // "Standard" is accepted as the old name for "Basic".
-  finish: z.preprocess((v) => (v === "Standard" ? "Basic" : blankToNull(v)), z.enum(FINISHES).nullish()),
+  // A filament can have several looks (Translucent + Glitter). Accepts an array or a
+  // comma-separated string from forms; "Standard" is the old name for "Basic".
+  finishes: z.preprocess(
+    (v) => {
+      const list = typeof v === "string" ? (v.trim() === "" ? [] : v.split(",")) : v;
+      if (!Array.isArray(list)) return list;
+      const unknown = list.map((f) => String(f).trim()).filter((f) => f && f !== "Standard" && !(FINISHES as readonly string[]).includes(f));
+      if (unknown.length) return { invalid: unknown }; // fails the array check below with a clear path
+      const out = normalizeFinishes(list.map(String));
+      return out.length ? out : null;
+    },
+    z.array(z.enum(FINISHES)).nullish(),
+  ),
   shoreScale: z.preprocess(blankToNull, z.enum(SHORE_SCALES).nullish()),
   shoreHardness: z.preprocess(blankToNull, z.coerce.number().int().min(0).max(100).nullish()),
   diameterMm: optNum,
