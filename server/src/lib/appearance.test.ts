@@ -17,7 +17,9 @@ describe("appearance helpers", () => {
     expect(finishFromWord("Glow in The Dark Blue")).toBe("Glow in the Dark");
     expect(finishFromWord("Transparent")).toBe("Translucent");
     expect(finishFromWord("Fast Gradient Twinkling Translucent Rose")).toBe("Glitter");
-    expect(finishFromWord("Basic")).toBeNull();
+    expect(finishFromWord("Basic")).toBe("Basic");
+    expect(finishFromWord("Standard")).toBe("Basic");
+    expect(finishFromWord("High Speed")).toBeNull();
   });
 
   it("keeps the main color one of the filament's colors", () => {
@@ -137,5 +139,27 @@ describe("enrichment of appearance", () => {
     );
     const by = Object.fromEntries(s.map((x) => [x.field, x.value]));
     expect(by).toMatchObject({ colorHexes: "#FF0000,#00FF00,#0000FF", colorHex: "#FF0000", multiColorDirection: "longitudinal", shoreScale: "A", shoreHardness: 95 });
+  });
+});
+
+describe("migration 6", () => {
+  it("renames the Standard finish to Basic, including its provenance", () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "spoolkeeper-mig6-")), "db.sqlite");
+    const old = new Database(file);
+    for (const m of MIGRATIONS.slice(0, 5)) old.exec(m);
+    old.pragma("user_version = 5");
+    old.exec(`INSERT INTO vendors (id, name) VALUES (1, 'Deeplee');
+      INSERT INTO products (id, vendor_id, material, color_name, finish) VALUES (6, 1, 'PLA', 'Yellow', 'Standard');
+      INSERT INTO field_sources (entity, entity_id, field, value, source) VALUES ('product', 6, 'finish', '"Standard"', 'manual');`);
+    old.close();
+    const db = openDb(file);
+    expect(db.prepare("SELECT finish FROM products WHERE id = 6").get()).toEqual({ finish: "Basic" });
+    expect(db.prepare("SELECT value FROM field_sources WHERE entity_id = 6").get()).toEqual({ value: '"Basic"' });
+  });
+
+  it("still accepts 'Standard' from older clients, stored as Basic", async () => {
+    setDb(openDb(":memory:"));
+    const res = await request(createApp()).post("/api/spools").send({ product: { vendor: "Deeplee", material: "PLA", finish: "Standard" } }).expect(201);
+    expect(res.body.spools[0].product.finish).toBe("Basic");
   });
 });

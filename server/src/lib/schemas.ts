@@ -36,7 +36,8 @@ export const productFields = {
       .nullish(),
   ),
   multiColorDirection: z.preprocess(blankToNull, z.enum(COLOR_DIRECTIONS).nullish()),
-  finish: z.preprocess(blankToNull, z.enum(FINISHES).nullish()),
+  // "Standard" is accepted as the old name for "Basic".
+  finish: z.preprocess((v) => (v === "Standard" ? "Basic" : blankToNull(v)), z.enum(FINISHES).nullish()),
   shoreScale: z.preprocess(blankToNull, z.enum(SHORE_SCALES).nullish()),
   shoreHardness: z.preprocess(blankToNull, z.coerce.number().int().min(0).max(100).nullish()),
   diameterMm: optNum,

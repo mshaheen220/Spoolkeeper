@@ -63,7 +63,7 @@ Every filament has a **Look** section, both when you add a spool and when you ed
 - **Single or Multi-color.** For dual-color, tri-color or rainbow filament, switch to **Multi-color** and list 2–6 colors.
   - **How the colors change.** *Side by side (coaxial)* means the colors run together down the strand, as in dual- and tri-color silk; every layer shows all of them. *Along the length* means the color shifts as the spool unwinds, as in gradient or rainbow filament.
   - **★ Main color.** OrcaSlicer can only show one color per filament. Spoolkeeper sends it the starred color: the first one unless you star another. The center of the swatch shows which one it is.
-- **Finish.** Silk, Matte, Marble, Glitter, Glow in the Dark, Translucent, Wood Fill, and so on. Picking *Silk PLA*, *Matte PLA* or *Wood PLA* sets it for you. Filaments you imported got their finish from words in their names; those show an **Inferred** badge until you confirm or change them.
+- **Finish.** Basic (plain, as in "PLA Basic"), Silk, Matte, Marble, Glitter, Glow in the Dark, Translucent, Wood Fill, and so on. **Line** is for the maker's product range (PLA+, High Speed, Tough…); if you type a finish word like Basic or Silk there, Spoolkeeper offers to move it to Finish. Picking *Silk PLA*, *Matte PLA* or *Wood PLA* sets it for you. Filaments you imported got their finish from words in their names; those show an **Inferred** badge until you confirm or change them.
 - **Shore hardness.** Shown automatically for TPU and other flexibles, or tap *Flexible filament? Add Shore hardness*. Enter the number and scale, for example 95 A.
 
 Lookups also suggest these values when the databases know them.

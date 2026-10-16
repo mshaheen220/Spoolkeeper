@@ -22,7 +22,7 @@ function materialLabel(s: Spool): string {
   return line.toUpperCase().includes(material.toUpperCase()) ? line : `${material} · ${line}`;
 }
 
-const finishOf = (s: Spool) => (s.product.finish && s.product.finish !== "Standard" ? s.product.finish : null);
+const finishOf = (s: Spool) => s.product.finish || null;
 
 const COMPARE: Record<SortKey, (a: Spool, b: Spool) => number> = {
   color: (a, b) => colorSortKey(a.product) - colorSortKey(b.product),

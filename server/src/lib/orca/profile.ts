@@ -144,7 +144,7 @@ export function buildProfile(opts: {
       [
         "Managed by Spoolkeeper - edit values there, not here.",
         multi ? `Colors: ${product.colorHexes!.join(", ")}${product.multiColorDirection ? ` (${product.multiColorDirection})` : ""}` : null,
-        product.finish && product.finish !== "Standard" ? `Finish: ${product.finish}` : null,
+        product.finish ? `Finish: ${product.finish}` : null,
         product.shoreHardness != null ? `Shore ${product.shoreHardness}${product.shoreScale ?? ""}` : null,
         tunedOn.length ? `Tuned on ${tunedOn.join(", ")}` : null,
         tag,

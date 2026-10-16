@@ -73,7 +73,7 @@ export const GRID_FIELDS = DETAIL_FIELDS.filter((f) => !CUSTOM_EDITORS.includes(
 
 /** Same vocabulary as the server (server/src/lib/appearance.ts). */
 export const FINISHES = [
-  "Standard",
+  "Basic",
   "Silk",
   "Matte",
   "Glossy",
@@ -122,7 +122,7 @@ export const MATERIAL_PRESETS: { label: string; material: string; line: string; 
 ];
 
 /** Product lines - how the maker names the range. Looks (Silk, Translucent, ...) belong in Finish, not here. */
-export const LINE_SUGGESTIONS = ["Basic", "PLA+", "PLA Pro", "High Speed", "Hyper", "Tough", "Dual Color", "Tri Color", "Rainbow", "Gradient"];
+export const LINE_SUGGESTIONS = ["PLA+", "PLA Pro", "High Speed", "Hyper", "Tough", "Dual Color", "Tri Color", "Rainbow", "Gradient"];
 
 const LINE_WORD_FINISH: [RegExp, string][] = [
   [/^silk$/i, "Silk"],
@@ -136,6 +136,7 @@ const LINE_WORD_FINISH: [RegExp, string][] = [
   [/^(glass fiber|gf)$/i, "Glass Fiber"],
   [/^iridescent$/i, "Iridescent"],
   [/^glossy$/i, "Glossy"],
+  [/^(basic|standard)$/i, "Basic"],
 ];
 
 /** The Finish a line value really describes ("Translucent" -> "Translucent", "Wood" -> "Wood Fill"), or null for a real product line. */

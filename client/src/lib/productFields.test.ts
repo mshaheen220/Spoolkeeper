@@ -8,6 +8,7 @@ describe("finishForLine", () => {
     expect(finishForLine("Wood")).toBe("Wood Fill");
     expect(finishForLine("Glow")).toBe("Glow in the Dark");
     expect(finishForLine(" silk ")).toBe("Silk");
+    expect(finishForLine("Basic")).toBe("Basic");
   });
 
   it("leaves real product lines alone", () => {

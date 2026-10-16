@@ -2,8 +2,10 @@
 // one place so the API, enrichment and the OrcaSlicer import agree on the
 // same vocabulary (close to the Finish choices used in Spoolman before).
 
+// "Basic" is the plain, glossy-ish default - the counterpart of Silk and Matte, as in
+// "PLA Basic". (Earlier versions called it "Standard", Spoolman's word; migration 6 renamed it.)
 export const FINISHES = [
-  "Standard",
+  "Basic",
   "Silk",
   "Matte",
   "Glossy",
@@ -47,6 +49,7 @@ export function finishFromWord(text: string | null | undefined): Finish | null {
     [/\b(glass fiber|gf)\b/, "Glass Fiber"],
     [/\b(metal|copper|bronze|steel)\b/, "Metal Fill"],
     [/\bglossy\b/, "Glossy"],
+    [/\b(basic|standard)\b/, "Basic"],
   ];
   return rules.find(([re]) => re.test(t))?.[1] ?? null;
 }

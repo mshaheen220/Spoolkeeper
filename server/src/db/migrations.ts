@@ -151,4 +151,9 @@ export const MIGRATIONS: string[] = [
   UPDATE calibration_runs SET printer_profile = COALESCE((SELECT json_extract(value, '$') FROM settings WHERE key = 'printerProfile'), 'TheHammer  0.4 nozzle');
   UPDATE calibration_runs SET nozzle_diameter = CASE WHEN printer_profile LIKE '%0.2 nozzle%' THEN 0.2 ELSE 0.4 END;
   `,
+
+  /* 6: the plain finish is called "Basic" (as in "PLA Basic"), not Spoolman's "Standard" */ `
+  UPDATE products SET finish = 'Basic' WHERE finish = 'Standard';
+  UPDATE field_sources SET value = '"Basic"' WHERE field = 'finish' AND value = '"Standard"';
+  `,
 ];
