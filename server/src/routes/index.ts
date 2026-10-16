@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { calibrationRouter } from "./calibration";
 import { enrichRouter } from "./enrich";
 import { healthRouter } from "./health";
 import { inventoryRouter } from "./inventory";
@@ -16,3 +17,4 @@ apiRouter.use(enrichRouter);
 apiRouter.use(orcaImportRouter);
 apiRouter.use(profileRouter);
 apiRouter.use(settingsRouter);
+apiRouter.use(calibrationRouter);

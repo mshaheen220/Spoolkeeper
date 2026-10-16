@@ -1,6 +1,6 @@
 {
   "name": "spoolkeeper",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "New-filament intake, per-spool calibration, and non-destructive OrcaSlicer profile publishing for a home 3D-printing workshop.",
   "workspaces": [

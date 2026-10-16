@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getSetting, getSources, getSpool, listSpoolsForProduct } from "../db/repo";
+import { calibratedSpoolForProduct, linearAdvanceStatus, tunedForSpool } from "../lib/calibration/service";
 import { idParam, notFound } from "../lib/http";
 import { DEFAULT_PRINTER_PROFILE } from "../lib/orca/bases";
 import { buildProfile, profileJsonText, type ProfileScope } from "../lib/orca/profile";
@@ -12,7 +13,15 @@ const scopeQuery = z.object({ scope: z.enum(["spool", "product"]).default("spool
 function build(spoolId: number, scope: ProfileScope) {
   const spool = getSpool(spoolId);
   if (!spool) throw notFound("Spool");
+  // Per spool: this spool's calibration. Per product: this spool's if it has
+  // any, otherwise the most recently calibrated spool of the same filament.
+  const own = tunedForSpool(spool.id);
+  const tunedFromSpool = Object.keys(own).length || scope === "spool" ? spool.id : calibratedSpoolForProduct(spool.product.id, spool.id);
+  const tuned = tunedFromSpool == null ? {} : tunedFromSpool === spool.id ? own : tunedForSpool(tunedFromSpool);
   return buildProfile({
+    tuned,
+    tunedFromSpool,
+    linearAdvance: linearAdvanceStatus(),
     spool,
     product: spool.product,
     productSources: getSources("product", spool.product.id),
@@ -38,6 +47,7 @@ profileRouter.get("/spools/:id/profile", (req, res) => {
     productId: getSpool(spoolId)!.product.id,
     scope: p.scope,
     profile: { name: p.name, fileName: p.fileName, inherits: p.inherits, baseFallback: p.baseFallback, compatiblePrinters: p.compatiblePrinters },
+    tunedFromSpool: p.tunedFromSpool,
     values: p.values,
     pending: p.pending,
     orca: { json: p.json, info: p.info },

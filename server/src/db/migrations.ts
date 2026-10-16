@@ -128,4 +128,20 @@ export const MIGRATIONS: string[] = [
   INSERT INTO field_sources (entity, entity_id, field, value, source, source_ref)
     SELECT 'product', id, 'finish', json_quote(finish), 'inferred', 'from line "' || line || '"' FROM products WHERE finish IS NOT NULL;
   `,
+
+  /* 4: calibration history - every run is kept; the latest accepted run per OrcaSlicer key is the tuned value */ `
+  CREATE TABLE calibration_runs (
+    id           INTEGER PRIMARY KEY,
+    spool_id     INTEGER NOT NULL REFERENCES spools(id),
+    test         TEXT NOT NULL,              -- see lib/calibration/tests.ts
+    params       TEXT NOT NULL,              -- JSON: the values entered in OrcaSlicer's test dialog
+    observation  TEXT NOT NULL,              -- JSON: what was seen on the print
+    result       TEXT NOT NULL,              -- JSON: [{ key, value }] OrcaSlicer filament keys
+    formula      TEXT NOT NULL,              -- the math, as shown to the user
+    accepted     INTEGER NOT NULL DEFAULT 1, -- 0 = kept for history but not used
+    notes        TEXT,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+  CREATE INDEX calibration_runs_spool ON calibration_runs(spool_id, created_at);
+  `,
 ];

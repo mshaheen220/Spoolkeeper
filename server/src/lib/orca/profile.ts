@@ -1,11 +1,13 @@
 import type { FieldSource, Product, Spool } from "../../db/repo";
+import type { TunedValue } from "../calibration/service";
+import { KEY_REASON, type LinearAdvance } from "../calibration/tests";
 import type { Source } from "../schemas";
 import { baseFor, ORCA_PRESET_VERSION } from "./bases";
 
 // Builds an OrcaSlicer user filament preset from what Spoolkeeper knows.
 // Only values with a known origin are written; everything else is left to
-// the inherited base profile. Phase 2's calibration results slot into
-// `tuned` and override the base here.
+// the inherited base profile. Calibration results (`tuned`) are written
+// on top and take each value out of the "pending" list.
 
 export type ProfileScope = "spool" | "product";
 
@@ -32,6 +34,8 @@ export interface BuiltProfile {
   compatiblePrinters: string[];
   values: ProfileValue[];
   pending: PendingValue[];
+  /** Spool whose calibration was used (a per-product profile may borrow another spool's). */
+  tunedFromSpool: number | null;
   json: Record<string, unknown>;
   info: string;
 }
@@ -44,13 +48,13 @@ export function profileName(product: Product, scope: ProfileScope, spoolId: numb
 
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
-/** The values OrcaSlicer needs that calibration (Phase 2) will supply; until then the base profile's apply. */
+/** The values calibration supplies; until each is tuned, the base profile's value applies. */
 export const PENDING_CALIBRATION: PendingValue[] = [
-  { key: "nozzle_temperature", why: "Temperature tower: coolest temperature with good layer bonding and no stringing." },
-  { key: "filament_flow_ratio", why: "Flow rate Pass 1 + Pass 2: how much plastic comes out versus what the slicer asks for." },
-  { key: "pressure_advance", why: "Linear Advance K (only if your Marlin firmware has it enabled — M503 shows an M900 line)." },
-  { key: "filament_retraction_length", why: "Retraction test: shortest pull-back that stops stringing." },
+  { key: "nozzle_temperature", why: "Temperature tower: best balance of layer bonding, bridging and stringing." },
   { key: "filament_max_volumetric_speed", why: "Max flowrate test: the fastest this filament can melt cleanly." },
+  { key: "pressure_advance", why: "Linear Advance K (only if your Marlin firmware has it enabled — M503 shows an M900 line)." },
+  { key: "filament_flow_ratio", why: "Flow ratio test: how much plastic comes out versus what the slicer asks for." },
+  { key: "filament_retraction_length", why: "Retraction test: shortest pull-back that stops stringing." },
 ];
 
 export function buildProfile(opts: {
@@ -61,6 +65,10 @@ export function buildProfile(opts: {
   printerProfile: string;
   /** Spool prices to average for a per-product profile. */
   productSpoolPrices?: number[];
+  /** Calibration results to write (latest accepted value per key). */
+  tuned?: Record<string, TunedValue>;
+  tunedFromSpool?: number | null;
+  linearAdvance?: LinearAdvance;
   now?: Date;
 }): BuiltProfile {
   const { spool, product, productSources: ps, scope, printerProfile } = opts;
@@ -101,6 +109,18 @@ export function buildProfile(opts: {
     put("nozzle_temperature_range_low", product.nozzleMin, { ...src("nozzleMin"), why: "Maker's minimum; OrcaSlicer warns below it." });
     put("nozzle_temperature_range_high", product.nozzleMax, { ...src("nozzleMax"), why: "Maker's maximum; OrcaSlicer warns above it." });
   }
+
+  // Calibration results override the base profile.
+  const tuned = opts.tuned ?? {};
+  for (const t of Object.values(tuned).sort((a, b) => (a.key < b.key ? -1 : 1))) {
+    if (opts.linearAdvance === "unsupported" && (t.key === "pressure_advance" || t.key === "enable_pressure_advance")) continue;
+    values.push({ key: t.key, value: t.value, source: "calibration", sourceRef: `run #${t.runId} (${t.date.slice(0, 10)})`, why: KEY_REASON[t.key] ?? `From calibration (${t.test}).` });
+  }
+  // A K value does nothing without Linear Advance in the firmware - say so explicitly instead of leaving it to the base.
+  if (opts.linearAdvance === "unsupported")
+    values.push({ key: "enable_pressure_advance", value: "0", source: "spoolkeeper", why: "Off: your Marlin firmware has no Linear Advance (M900 is an unknown command)." });
+
+  const pending = PENDING_CALIBRATION.filter((p) => !tuned[p.key]).filter((p) => !(p.key === "pressure_advance" && opts.linearAdvance === "unsupported"));
 
   // Structural keys: which printer it attaches to, and an ownership tag
   // that Phase 3's publish step uses to recognize its own files.
@@ -148,7 +168,8 @@ export function buildProfile(opts: {
     baseFallback: base.fallback,
     compatiblePrinters: [printerProfile],
     values,
-    pending: PENDING_CALIBRATION,
+    pending,
+    tunedFromSpool: Object.keys(tuned).length ? (opts.tunedFromSpool ?? spool.id) : null,
     json: sorted,
     info,
   };
