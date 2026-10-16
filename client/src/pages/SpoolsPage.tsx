@@ -1,25 +1,144 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useMemo, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router";
 import { fetchSpools } from "../api/inventory";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
-import { range } from "../lib/format";
+import { colorFamilies, colorSortKey, FAMILIES, FAMILY_SWATCH, type ColorFamily } from "../lib/colorFamily";
+import type { Spool } from "../types";
+
+type SortKey = "color" | "brand" | "material" | "finish" | "id";
+
+const STANDARD_DIAMETER = 1.75;
+
+// Lines that only describe the look ("Silk", "Transparent", "Wood") duplicate the
+// Finish column, so the Material column keeps just real product lines ("PLA+", "High Speed").
+const FINISH_WORDS = /^(silk|matte?|marble|glitter|sparkle|glow|translucent|transparent|clear|wood|carbon fiber|iridescent|glossy)$/i;
+
+/** "PLA", "PLA+", "PLA · High Speed". */
+function materialLabel(s: Spool): string {
+  const { material, line } = s.product;
+  if (!line || FINISH_WORDS.test(line.trim())) return material;
+  return line.toUpperCase().includes(material.toUpperCase()) ? line : `${material} · ${line}`;
+}
+
+const finishOf = (s: Spool) => (s.product.finish && s.product.finish !== "Standard" ? s.product.finish : null);
+
+const COMPARE: Record<SortKey, (a: Spool, b: Spool) => number> = {
+  color: (a, b) => colorSortKey(a.product) - colorSortKey(b.product),
+  brand: (a, b) => a.product.vendor.name.localeCompare(b.product.vendor.name, undefined, { sensitivity: "base" }),
+  material: (a, b) => materialLabel(a).localeCompare(materialLabel(b)),
+  finish: (a, b) => (finishOf(a) ?? "~").localeCompare(finishOf(b) ?? "~"), // unset finishes sort last
+  id: (a, b) => a.id - b.id,
+};
+
+/** A toggleable filter chip; aria-pressed carries its state. */
+function Chip({ active, onClick, children, label }: { active: boolean; onClick: () => void; children: ReactNode; label?: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize ${
+        active ? "border-accent-500 bg-accent-500/15 text-ink-50" : "border-ink-700 text-ink-300 hover:border-ink-500"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SortHeader({
+  k,
+  sort,
+  desc,
+  onSort,
+  children,
+  className = "",
+}: {
+  k: SortKey;
+  sort: SortKey;
+  desc: boolean;
+  onSort: (k: SortKey) => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <th scope="col" aria-sort={sort === k ? (desc ? "descending" : "ascending") : "none"} className={`px-2 py-2 text-left font-medium ${className}`}>
+      <button type="button" onClick={() => onSort(k)} className="inline-flex items-center gap-1 hover:text-ink-100">
+        {children}
+        <span aria-hidden className={sort === k ? "text-accent-400" : "text-ink-600"}>
+          {sort === k ? (desc ? "▾" : "▴") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
 
 export function SpoolsPage() {
-  const [showArchived, setShowArchived] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const showArchived = params.get("archived") === "1";
   const { data: spools, error, isLoading } = useAsync(() => fetchSpools(showArchived), [showArchived]);
-  const [query, setQuery] = useState("");
-  const [material, setMaterial] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const materials = useMemo(() => [...new Set((spools ?? []).map((s) => s.product.material))].sort(), [spools]);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (spools ?? []).filter(
+  // Filters and sort live in the URL so the back button and refresh keep them.
+  const q = params.get("q") ?? "";
+  const material = params.get("material") ?? "";
+  const finish = params.get("finish") ?? "";
+  const color = (params.get("color") ?? "") as ColorFamily | "";
+  const brand = params.get("brand") ?? "";
+  const sort = (params.get("sort") as SortKey) || "brand";
+  const desc = params.get("dir") === "desc";
+
+  const update = (fn: (p: URLSearchParams) => void) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        fn(next);
+        return next;
+      },
+      { replace: true },
+    );
+  const setParam = (key: string, value: string) => update((p) => (value ? p.set(key, value) : p.delete(key)));
+  const toggle = (key: string, value: string, current: string) => setParam(key, current === value ? "" : value);
+  const sortBy = (key: SortKey) =>
+    update((p) => {
+      const same = (p.get("sort") || "brand") === key;
+      p.set("sort", key);
+      if (same && p.get("dir") !== "desc") p.set("dir", "desc");
+      else p.delete("dir");
+    });
+  const clearAll = () => update((p) => ["q", "material", "finish", "color", "brand"].forEach((k) => p.delete(k)));
+
+  const all = useMemo(() => spools ?? [], [spools]);
+  const options = useMemo(
+    () => ({
+      materials: [...new Set(all.map((s) => s.product.material))].sort(),
+      finishes: [...new Set(all.map(finishOf).filter((f): f is string => !!f))].sort(),
+      colors: FAMILIES.filter((f) => all.some((s) => colorFamilies(s.product).includes(f))),
+      brands: [...new Set(all.map((s) => s.product.vendor.name))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
+    }),
+    [all],
+  );
+
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = all.filter(
       (s) =>
         (!material || s.product.material === material) &&
-        (!q || `${s.product.displayName} #${s.id} ${s.store ?? ""}`.toLowerCase().includes(q)),
+        (!finish || finishOf(s) === finish) &&
+        (!color || colorFamilies(s.product).includes(color)) &&
+        (!brand || s.product.vendor.name === brand) &&
+        (!needle || `${s.product.displayName} #${s.id} ${s.store ?? ""} ${s.product.finish ?? ""}`.toLowerCase().includes(needle)),
     );
-  }, [spools, query, material]);
+    // Stable tie-breaks: brand, then material, then color, so equal keys still read in a sensible order.
+    const tie = (a: Spool, b: Spool) => COMPARE.brand(a, b) || COMPARE.material(a, b) || COMPARE.color(a, b) || a.id - b.id;
+    return list.sort((a, b) => (desc ? -1 : 1) * COMPARE[sort](a, b) || tie(a, b));
+  }, [all, q, material, finish, color, brand, sort, desc]);
+
+  const activeCount = [material, finish, color, brand].filter(Boolean).length;
+  const headerProps = { sort, desc, onSort: sortBy };
 
   return (
     <div className="space-y-3">
@@ -35,27 +154,73 @@ export function SpoolsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <label className="min-w-0 flex-1 basis-48">
+      <div className="flex gap-2">
+        <label className="min-w-0 flex-1">
           <span className="sr-only">Search spools</span>
-          <input
-            type="search"
-            className="field"
-            placeholder="Search brand, color, #ID…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <input type="search" className="field" placeholder="Search brand, color, #ID…" value={q} onChange={(e) => setParam("q", e.target.value)} />
         </label>
-        <label>
-          <span className="sr-only">Filter by material</span>
-          <select className="field w-auto" value={material} onChange={(e) => setMaterial(e.target.value)}>
-            <option value="">All materials</option>
-            {materials.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
-        </label>
+        <button type="button" className="btn shrink-0" aria-expanded={filtersOpen} aria-controls="spool-filters" onClick={() => setFiltersOpen((o) => !o)}>
+          Filters{activeCount ? ` (${activeCount})` : ""}
+        </button>
       </div>
+
+      {filtersOpen && (
+        <div id="spool-filters" className="card space-y-3 p-3">
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">Material</p>
+            <div className="flex flex-wrap gap-1.5">
+              {options.materials.map((m) => (
+                <Chip key={m} active={material === m} onClick={() => toggle("material", m, material)}>
+                  <span className="normal-case">{m}</span>
+                </Chip>
+              ))}
+            </div>
+          </div>
+          {options.finishes.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">Finish</p>
+              <div className="flex flex-wrap gap-1.5">
+                {options.finishes.map((f) => (
+                  <Chip key={f} active={finish === f} onClick={() => toggle("finish", f, finish)}>
+                    <span className="normal-case">{f}</span>
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">Color</p>
+            <div className="flex flex-wrap gap-1.5">
+              {options.colors.map((c) => (
+                <Chip key={c} active={color === c} onClick={() => toggle("color", c, color)} label={`${c} filaments`}>
+                  <span aria-hidden className="h-3.5 w-3.5 rounded-full border border-ink-600" style={{ background: FAMILY_SWATCH[c] }} />
+                  {c}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <label className="block space-y-1.5">
+            <span className="block text-xs font-semibold tracking-wide text-ink-400 uppercase">Brand</span>
+            <select className="field" value={brand} onChange={(e) => setParam("brand", e.target.value)}>
+              <option value="">All brands</option>
+              {options.brands.map((b) => (
+                <option key={b}>{b}</option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-sm text-ink-400">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setParam("archived", e.target.checked ? "1" : "")} />
+              Include archived (empty) spools
+            </label>
+            {activeCount > 0 && (
+              <button type="button" className="text-sm text-accent-400 underline" onClick={clearAll}>
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-300 day:text-rose-800">
@@ -80,33 +245,76 @@ export function SpoolsPage() {
         </div>
       )}
 
-      <ul className="divide-y divide-ink-800 overflow-hidden rounded-lg border border-ink-800" aria-label="Spools">
-        {filtered.map((s) => {
-          const p = s.product;
-          return (
-            <li key={s.id}>
-              <Link to={`/spools/${s.id}`} className="flex items-center gap-3 bg-ink-900/40 px-3 py-3 hover:bg-ink-900">
-                <Swatch hex={p.colorHex} hexes={p.colorHexes} direction={p.multiColorDirection} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{p.displayName}</p>
-                  <p className="truncate text-xs text-ink-400">
-                    {[p.finish && p.finish !== "Standard" ? p.finish : null, range(p.nozzleMin, p.nozzleMax, "°C"), p.diameterMm ? `${p.diameterMm} mm` : null, s.store]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded bg-ink-800 px-1.5 py-0.5 font-mono text-xs text-ink-300">#{s.id}</span>
-                {s.archived && <span className="text-[11px] text-ink-500">archived</span>}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-
-      <label className="flex items-center gap-2 text-sm text-ink-400">
-        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-        Show archived (empty) spools
-      </label>
+      {all.length > 0 && (
+        <>
+          <p className="text-xs text-ink-400" aria-live="polite">
+            {shown.length === all.length ? `${all.length} spools` : `${shown.length} of ${all.length} spools`}
+          </p>
+          <div className="overflow-hidden rounded-lg border border-ink-800">
+            <table className="w-full table-fixed text-sm">
+              <caption className="sr-only">Spools, sortable by column</caption>
+              <thead className="bg-ink-900 text-xs text-ink-400">
+                <tr>
+                  <SortHeader k="color" {...headerProps} className="w-[44%] pl-3 sm:w-[34%]">
+                    Color
+                  </SortHeader>
+                  <SortHeader k="brand" {...headerProps} className="w-[28%] sm:w-[20%]">
+                    Brand
+                  </SortHeader>
+                  <SortHeader k="material" {...headerProps} className="w-[28%] sm:w-[20%]">
+                    Material
+                  </SortHeader>
+                  <SortHeader k="finish" {...headerProps} className="hidden sm:table-cell sm:w-[16%]">
+                    Finish
+                  </SortHeader>
+                  <SortHeader k="id" {...headerProps} className="hidden pr-3 sm:table-cell sm:w-[10%]">
+                    #
+                  </SortHeader>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-800">
+                {shown.map((s) => {
+                  const p = s.product;
+                  const odd = p.diameterMm != null && p.diameterMm !== STANDARD_DIAMETER;
+                  return (
+                    <tr key={s.id} className="bg-ink-900/40 hover:bg-ink-900">
+                      <td className="py-2.5 pr-2 pl-3">
+                        <Link to={`/spools/${s.id}`} className="flex min-w-0 items-center gap-2.5">
+                          <Swatch hex={p.colorHex} hexes={p.colorHexes} direction={p.multiColorDirection} size={30} />
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{p.colorName ?? "—"}</span>
+                            {/* On phones, finish and #ID move under the color instead of their own columns. */}
+                            <span className="block truncate text-xs text-ink-400 sm:hidden">
+                              {[finishOf(s), `#${s.id}`, odd ? `${p.diameterMm} mm` : null, s.archived ? "archived" : null].filter(Boolean).join(" · ")}
+                            </span>
+                            {(odd || s.archived) && (
+                              <span className="hidden truncate text-xs text-ink-400 sm:block">
+                                {[odd ? `${p.diameterMm} mm` : null, s.archived ? "archived" : null].filter(Boolean).join(" · ")}
+                              </span>
+                            )}
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="truncate px-2 py-2.5 text-ink-200">{p.vendor.name}</td>
+                      <td className="truncate px-2 py-2.5 text-ink-200">{materialLabel(s)}</td>
+                      <td className="hidden truncate px-2 py-2.5 text-ink-300 sm:table-cell">{finishOf(s) ?? ""}</td>
+                      <td className="hidden py-2.5 pr-3 pl-2 font-mono text-xs text-ink-400 sm:table-cell">#{s.id}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {shown.length === 0 && (
+              <p className="p-4 text-sm text-ink-400">
+                No spools match.{" "}
+                <button type="button" className="text-accent-400 underline" onClick={clearAll}>
+                  Clear filters
+                </button>
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

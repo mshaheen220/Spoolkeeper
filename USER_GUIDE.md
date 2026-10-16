@@ -10,6 +10,21 @@ Open it at `http://localhost:8003` on the Mac, or at `http://<the Mac's LAN IP>:
 - The ☀️ 🌙 💻 buttons switch between day, night and your system's theme.
 - ⚙️ opens Settings.
 
+## The spool list
+
+The home page lists every spool with its **color**, **brand**, **material**, **finish** and **Spool #**. On a phone, finish and # sit under the color name.
+
+- **Sort** by tapping any column header; tap again to reverse.
+- **Filters** narrows the list. Combine any of:
+  - **Material:** PLA, PETG, TPU…
+  - **Finish:** Silk, Matte, Translucent, Glitter…
+  - **Color family:** reds, greens, browns… Worked out from the color name first ("Walnut" is brown, "Rose" is pink), and from the swatch when the name doesn't say. A multi-color filament shows under each of its colors.
+  - **Brand.**
+- **Search** matches brand, color, store and Spool #.
+- Filters and sort are kept in the page address, so the back button and refresh keep them, and you can bookmark a view such as "PLA greens".
+- **Diameter** only appears for a spool that isn't 1.75 mm.
+- **Spool #** is the permanent number of that physical roll. It's in profile names like "(Spool #27)", it's what calibration results belong to, and it'll go on spool labels. The numbers just count up as spools are added.
+
 ## 1. Bring in what you already have (once)
 
 **Spools → Import** reads your OrcaSlicer user filament profiles and turns them into inventory.
