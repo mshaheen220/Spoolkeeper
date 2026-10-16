@@ -58,7 +58,7 @@ Under each field, a short note explains why the value matters. Badges show where
 
 ## 3. Colors, finish and flexibility
 
-Every filament has a **Look** section, both when you add a spool and when you edit a filament.
+**Type, Line and Finish** sit together under *What is it?*, because Line and Finish are easy to mix up. **Line** is the maker's range name (PLA+, High Speed); **Finish** is how it looks (Basic, Silk, Matte). Colors and Shore hardness are in the **Color & flexibility** section below. Both appear when you add a spool and when you edit a filament.
 
 - **Single or Multi-color.** For dual-color, tri-color or rainbow filament, switch to **Multi-color** and list 2–6 colors.
   - **How the colors change.** *Side by side (coaxial)* means the colors run together down the strand, as in dual- and tri-color silk; every layer shows all of them. *Along the length* means the color shifts as the spool unwinds, as in gradient or rainbow filament.

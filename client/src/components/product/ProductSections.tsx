@@ -69,7 +69,9 @@ export function IdentityFields({ form }: { form: ProductForm }) {
             );
           })}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        {/* Type, Line and Finish sit together: Line (the maker's range name) and
+            Finish (how it looks) are easy to confuse, so each says which it is. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <ComboField
             label="Type"
             value={values.material}
@@ -77,7 +79,7 @@ export function IdentityFields({ form }: { form: ProductForm }) {
             options={typeOptions}
             required
             provenance={prov.material}
-            help="OrcaSlicer's filament type; picks the base profile."
+            help="OrcaSlicer's filament type."
             newLabel="Use type"
           />
           <ComboField
@@ -87,8 +89,10 @@ export function IdentityFields({ form }: { form: ProductForm }) {
             options={lineOptions}
             placeholder="PLA+, High Speed…"
             provenance={prov.line}
+            help="The maker's range name, if it has one."
             newLabel="Use line"
           />
+          <FinishSelect form={form} className="col-span-2 sm:col-span-1" />
         </div>
         {lineFinish && values.finish !== lineFinish && (
           <p role="status" className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 day:text-amber-900">
@@ -112,10 +116,34 @@ export function IdentityFields({ form }: { form: ProductForm }) {
   );
 }
 
-/** Color(s), finish and - for flexible filament - Shore hardness. */
+/** How the filament looks: Basic, Silk, Matte... - shown next to Type and Line. */
+function FinishSelect({ form, className }: { form: ProductForm; className?: string }) {
+  const { values, prov, set } = form;
+  const id = useId();
+  return (
+    <div className={className}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label htmlFor={id} className="text-sm font-medium text-ink-200">
+          Finish
+        </label>
+        {prov.finish && values.finish && <SourceBadge compact source={prov.finish.source} sourceRef={prov.finish.sourceRef} />}
+      </div>
+      <select id={id} className="field" value={values.finish ?? ""} onChange={(e) => set("finish", e.target.value)} aria-describedby={`${id}-help`}>
+        <option value="">Not set</option>
+        {FINISHES.map((f) => (
+          <option key={f}>{f}</option>
+        ))}
+      </select>
+      <p id={`${id}-help`} className="mt-1 text-xs leading-snug text-ink-400" title={FINISH_HELP}>
+        How it looks: Basic, Silk, Matte…
+      </p>
+    </div>
+  );
+}
+
+/** Color(s) and - for flexible filament - Shore hardness. */
 export function AppearanceFields({ form }: { form: ProductForm }) {
   const { values, prov, set } = form;
-  const finishId = useId();
   const shoreId = useId();
   const isFlexible = FLEXIBLE_MATERIALS.includes((values.material ?? "").toUpperCase());
   const [showShore, setShowShore] = useState(false);
@@ -130,24 +158,6 @@ export function AppearanceFields({ form }: { form: ProductForm }) {
         prov={prov}
         set={(k, v) => set(k, v)}
       />
-
-      <div>
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <label htmlFor={finishId} className="text-sm font-medium text-ink-200">
-            Finish
-          </label>
-          {prov.finish && values.finish && <SourceBadge compact source={prov.finish.source} sourceRef={prov.finish.sourceRef} />}
-        </div>
-        <select id={finishId} className="field" value={values.finish ?? ""} onChange={(e) => set("finish", e.target.value)} aria-describedby={`${finishId}-help`}>
-          <option value="">Not set</option>
-          {FINISHES.map((f) => (
-            <option key={f}>{f}</option>
-          ))}
-        </select>
-        <p id={`${finishId}-help`} className="mt-1 text-xs leading-snug text-ink-400">
-          {FINISH_HELP}
-        </p>
-      </div>
 
       {shoreVisible ? (
         <div>

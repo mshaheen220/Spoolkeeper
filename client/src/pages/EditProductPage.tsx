@@ -82,7 +82,7 @@ function EditForm({ product, sources }: { product: Product; sources: Record<stri
 
       <section className="card space-y-4" aria-labelledby="looks-heading">
         <h2 id="looks-heading" className="font-semibold">
-          Look
+          Color &amp; flexibility
         </h2>
         <AppearanceFields form={form} />
       </section>
