@@ -108,6 +108,7 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `POST /spools/:id/calibration/runs` | Save a run (validated, computed server-side) |
 | `PATCH /calibration/runs/:id { accepted }` | Stop or resume using a run; runs are never deleted |
 | `GET /settings`, `PUT /settings { printerProfile, linearAdvance }`, `POST /settings/esteps` | Settings, Linear Advance status, E-steps check |
+| `GET /orca/printers` | Printer presets in the mounted OrcaSlicer folder (exact `name` fields), for the Settings dropdown |
 
 ### OrcaSlicer preset format
 

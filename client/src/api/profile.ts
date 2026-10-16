@@ -43,6 +43,15 @@ export interface Settings {
   esteps: EstepsCheck | null;
 }
 
+export interface OrcaPrinter {
+  name: string;
+  inherits: string | null;
+  nozzleDiameter: number | null;
+}
+
+/** Printer presets in OrcaSlicer's user folder. */
+export const fetchPrinters = () => request<{ printers: OrcaPrinter[]; error?: string }>("/api/orca/printers");
+
 export const fetchSettings = () => request<Settings>("/api/settings");
 
 export const checkEsteps = (body: { current: number; remainingMm: number; markMm?: number; extrudeMm?: number }) =>

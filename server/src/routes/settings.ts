@@ -2,8 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config";
 import { getSetting, setSetting } from "../db/repo";
-import { HttpError } from "../lib/http";
+import { asyncHandler, HttpError } from "../lib/http";
 import { DEFAULT_PRINTER_PROFILE } from "../lib/orca/bases";
+import { listUserPrinters } from "../lib/orca/printers";
 
 export const settingsRouter = Router();
 
@@ -30,6 +31,18 @@ function currentSettings() {
 settingsRouter.get("/settings", (_req, res) => {
   res.json(currentSettings());
 });
+
+/** Printer presets in the OrcaSlicer folder, for the Settings dropdown. Empty if the folder isn't readable. */
+settingsRouter.get(
+  "/orca/printers",
+  asyncHandler(async (_req, res) => {
+    try {
+      res.json({ printers: await listUserPrinters(config.orcaUserDir) });
+    } catch {
+      res.json({ printers: [], error: `Couldn't read printer presets in ${config.orcaUserDir}/machine` });
+    }
+  }),
+);
 
 const settingsPatch = z.object({
   // Not trimmed: OrcaSlicer preset names can contain meaningful double spaces.

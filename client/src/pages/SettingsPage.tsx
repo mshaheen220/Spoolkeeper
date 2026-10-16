@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { refreshEnrichment } from "../api/enrich";
-import { checkEsteps, fetchSettings, saveSettings, type Settings } from "../api/profile";
+import { checkEsteps, fetchPrinters, fetchSettings, saveSettings, type OrcaPrinter, type Settings } from "../api/profile";
 import { useAsync } from "../hooks/useAsync";
 
 export function SettingsPage() {
   const { data, error, reload } = useAsync(fetchSettings, []);
-  const [printer, setPrinter] = useState<string | null>(null);
+  const { data: printers } = useAsync(fetchPrinters, []);
+  const [typed, setTyped] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  const printerValue = printer ?? data?.printerProfile ?? "";
-
-  const save = async () => {
-    await saveSettings({ printerProfile: printerValue });
-    setPrinter(null);
+  const savePrinter = async (name: string) => {
+    await saveSettings({ printerProfile: name });
+    setTyped(null);
     reload();
-    setStatus("Saved.");
+    setStatus(`Exported profiles now attach to “${name}”.`);
   };
 
   const refresh = async () => {
@@ -40,20 +39,16 @@ export function SettingsPage() {
         <h2 id="orca-heading" className="font-semibold">
           OrcaSlicer
         </h2>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-ink-200">Printer profile</span>
-          <input className="field font-mono" value={printerValue} onChange={(e) => setPrinter(e.target.value)} />
-          <span className="mt-1 block text-xs text-ink-400">
-            Exported filament profiles attach to this printer preset. It must match OrcaSlicer's name exactly — yours has two spaces in “TheHammer
-            {"  "}0.4 nozzle”.
-          </span>
-        </label>
+        <PrinterPicker
+          current={data?.printerProfile ?? ""}
+          printers={printers?.printers ?? null}
+          typed={typed}
+          setTyped={setTyped}
+          onPick={savePrinter}
+        />
         <p className="text-xs text-ink-400">
           Profiles folder: <span className="font-mono break-all">{data?.orcaUserDir}</span>
         </p>
-        <button type="button" className="btn-primary" onClick={save} disabled={!printerValue || printerValue === data?.printerProfile}>
-          Save
-        </button>
       </section>
 
       {data && <PrinterSection settings={data} onChange={reload} />}
@@ -179,5 +174,69 @@ function PrinterSection({ settings, onChange }: { settings: Settings; onChange: 
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The printer preset exported filament profiles attach to, picked from the
+ * presets OrcaSlicer actually has. Values are the exact preset names (some
+ * contain double spaces), so nothing has to be typed. Falls back to typing
+ * only when the OrcaSlicer folder can't be read.
+ */
+function PrinterPicker({
+  current,
+  printers,
+  typed,
+  setTyped,
+  onPick,
+}: {
+  current: string;
+  printers: OrcaPrinter[] | null;
+  typed: string | null;
+  setTyped: (v: string | null) => void;
+  onPick: (name: string) => void;
+}) {
+  const id = "printer-profile";
+  const help = <span className="mt-1 block text-xs text-ink-400">Exported filament profiles only show up in OrcaSlicer when this printer is selected.</span>;
+  if (printers === null) return <p className="text-sm text-ink-400">Reading OrcaSlicer printers…</p>;
+
+  if (printers.length === 0) {
+    const value = typed ?? current;
+    return (
+      <div>
+        <label htmlFor={id} className="mb-1 block text-sm font-medium text-ink-200">
+          Printer profile
+        </label>
+        <p className="mb-2 text-xs text-amber-300 day:text-amber-800">
+          Couldn't read OrcaSlicer's printer presets, so type the name exactly as OrcaSlicer shows it.
+        </p>
+        <div className="flex gap-2">
+          <input id={id} className="field font-mono" value={value} onChange={(e) => setTyped(e.target.value)} />
+          <button type="button" className="btn-primary" disabled={!value || value === current} onClick={() => onPick(value)}>
+            Save
+          </button>
+        </div>
+        {help}
+      </div>
+    );
+  }
+
+  const known = printers.some((p) => p.name === current);
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-ink-200">
+        Printer profile
+      </label>
+      <select id={id} className="field" value={current} onChange={(e) => onPick(e.target.value)}>
+        {!known && current && <option value={current}>{current} (not found in OrcaSlicer)</option>}
+        {printers.map((p) => (
+          <option key={p.name} value={p.name}>
+            {p.name}
+            {p.nozzleDiameter && !/nozzle/i.test(p.name) ? ` · ${p.nozzleDiameter} mm nozzle` : ""}
+          </option>
+        ))}
+      </select>
+      {help}
+    </div>
   );
 }

@@ -110,7 +110,7 @@ Calibrated values are badged **Tuned** and override the base profile. Until a va
 
 ## Settings
 
-- **Printer profile.** The OrcaSlicer printer preset that exported filament profiles attach to. It must match OrcaSlicer's name exactly; yours is `TheHammer  0.4 nozzle`, with two spaces.
+- **Printer profile.** Pick the OrcaSlicer printer preset that exported filament profiles attach to. The list comes straight from OrcaSlicer's printer presets (yours are *TheHammer 0.4 nozzle* and *TheHammer 0.2 nozzle*), so the exact names are used, including the double space in the 0.4 one. Changing it saves immediately.
 - **Refresh cached data.** Fetches fresh copies of the filament databases on the next lookup.
 
 ## Coming next
