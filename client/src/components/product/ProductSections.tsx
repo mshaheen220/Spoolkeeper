@@ -247,6 +247,7 @@ export function LookupControls({ form }: { form: ProductForm }) {
           {pageStatus}
         </p>
       )}
+      <PasteText form={form} />
       <button type="button" className="btn w-full" onClick={() => void lookup()} disabled={!ready || lookingUp}>
         {lookingUp ? "Looking up…" : "🔎 Look up filament data"}
       </button>
@@ -256,6 +257,29 @@ export function LookupControls({ form }: { form: ProductForm }) {
         </p>
       )}
     </>
+  );
+}
+
+/**
+ * Fallback for stores that block automated reads or build their spec
+ * tables with scripts: copy the page in your own browser and paste it.
+ */
+function PasteText({ form }: { form: ProductForm }) {
+  const [text, setText] = useState("");
+  const id = useId();
+  return (
+    <details className="rounded-md border border-ink-800 px-3 py-2">
+      <summary className="cursor-pointer text-xs text-ink-300">Page blocked or missing specs? Paste the page's text</summary>
+      <div className="mt-2 space-y-2">
+        <label htmlFor={id} className="block text-xs leading-snug text-ink-400">
+          On the product page in your browser, select all (⌘A), copy (⌘C), and paste here. Or paste just the specs section.
+        </label>
+        <textarea id={id} className="field min-h-28 font-mono text-xs" value={text} onChange={(e) => setText(e.target.value)} placeholder="Nozzle temperature 190-230°C …" />
+        <button type="button" className="btn" disabled={text.trim().length < 20 || form.readingPage} onClick={() => void form.readPasted(text)}>
+          {form.readingPage ? "Reading…" : "Read pasted text"}
+        </button>
+      </div>
+    </details>
   );
 }
 

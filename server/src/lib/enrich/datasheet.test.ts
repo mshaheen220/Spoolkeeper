@@ -94,3 +94,75 @@ describe("finding the datasheet link", () => {
     expect(isPdfUrl(new URL("https://www.sunlu.com/products/tpu"))).toBe(false);
   });
 });
+
+describe("Polymaker Panchroma Matte PLA (text as rendered in a browser and pasted)", () => {
+  // From document.body.innerText of shop.polymaker.com/products/matte-pla, 2026-10-16 (trimmed).
+  const POLYMAKER = `MATTE PASTEL BEIGE
+Type
+SPOOL (NEW PACKAGING)
+Net Weight
+1KG
+TECHNICAL SPECIFICATIONS
+
+Everything you need before you hit print
+NOZZLE
+190-230
+°C
+BED
+25-60
+°C
+MAX SPEED
+300
+mm/s
+ENCLOSURE
+Not needed
+DRYING
+55°C
+for 6h
+COMPATIBILITY
+☑
+Good
+Printing Tips
+Use standard PLA settings, a 0.4 mm or larger nozzle, and full cooling for the best surface quality.
+PROPERTY\tX-Y\tZ\tVALUE\tMETHOD
+Density\t—\t—\t
+1.37
+g/cm³
+\tISO 1183
+Tensile strength\t
+23.2
+MPa`;
+
+  it("reads the spec tiles and the properties table", () => {
+    expect(values(POLYMAKER)).toEqual({
+      nozzleMin: 190,
+      nozzleMax: 230,
+      bedMin: 25,
+      bedMax: 60,
+      dryTempC: 55,
+      dryHours: 6,
+      density: 1.37,
+      speedNote: "MAX SPEED 300 mm/s · Enclosure: not needed",
+    });
+  });
+});
+
+describe("pasted page text", () => {
+  it("reads like a fetched page and labels where it came from", async () => {
+    const { readPastedText } = await import("./productPage");
+    const c = readPastedText("Panchroma Matte PLA\nNOZZLE\n190-230\n°C\nBED\n25-60\n°C", "https://shop.polymaker.com/products/matte-pla");
+    expect(c.title).toBe("Pasted text from shop.polymaker.com");
+    const by = Object.fromEntries(c.suggestions.map((s) => [s.field, s]));
+    expect(by.nozzleMin.value).toBe(190);
+    expect(by.nozzleMin.note).toMatch(/^pasted:/);
+    expect(by.finishes.value).toBe("Matte"); // short paste: looks are read
+  });
+
+  it("skips finishes on a whole-page paste, whose menus name other products", async () => {
+    const { readPastedText } = await import("./productPage");
+    const menus = "Shop: Silk PLA, Glow PLA, Wood PLA, Marble PLA\n".repeat(120);
+    const c = readPastedText(`${menus}\nNOZZLE\n190-230\n°C`, undefined);
+    expect(c.suggestions.some((s) => s.field === "finishes")).toBe(false);
+    expect(c.warnings?.[0]).toMatch(/whole page/);
+  });
+});

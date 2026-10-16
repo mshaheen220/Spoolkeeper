@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { readProductPage, searchEnrichment, type Candidate, type EnrichResult, type Suggestion } from "../api/enrich";
+import { readPastedText, readProductPage, searchEnrichment, type Candidate, type EnrichResult, type Suggestion } from "../api/enrich";
 import type { SourceMap } from "../api/inventory";
 import { DETAIL_FIELDS, ID_FIELDS, type ProductFieldKey } from "../lib/productFields";
 import { splitHexes } from "../lib/colors";
@@ -8,6 +8,14 @@ import type { Source } from "../types";
 
 export type Values = Record<string, string>;
 export type Provenance = Record<string, { source: Source; sourceRef?: string | null }>;
+
+/** What a page/text read found, plus anything that made it incomplete. */
+function describeRead(c: Candidate, what: string): string {
+  const found = c.suggestions.length
+    ? `Read ${c.suggestions.length} value(s) from the ${what}; review them in Suggestions.`
+    : `Nothing usable could be read from the ${what}.`;
+  return [found, ...(c.warnings ?? [])].join(" ");
+}
 
 /** Product fields sent on save (identity + every detail field + reference ids). */
 export const PRODUCT_KEYS = ["vendor", "material", "line", ...DETAIL_FIELDS.map((f) => f.key), ...ID_FIELDS, "notes"];
@@ -91,11 +99,22 @@ export function useProductForm(initialValues: Values, initialProv: Provenance = 
     try {
       const c = await readProductPage(url);
       addExtra(c);
-      setPageStatus(
-        c.suggestions.length
-          ? `Read ${c.suggestions.length} value(s) from the page; review them in Suggestions.`
-          : "The page loaded, but no temperatures or settings could be read from it.",
-      );
+      setPageStatus(describeRead(c, "page"));
+    } catch (e) {
+      setPageStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReadingPage(false);
+    }
+  };
+
+  /** Read text the user copied from the product page in their own browser. */
+  const readPasted = async (text: string) => {
+    setReadingPage(true);
+    setPageStatus(null);
+    try {
+      const c = await readPastedText(text, values.productUrl?.trim() || undefined);
+      addExtra(c);
+      setPageStatus(describeRead(c, "pasted text"));
     } catch (e) {
       setPageStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -159,6 +178,7 @@ export function useProductForm(initialValues: Values, initialProv: Provenance = 
     lookupError,
     addExtra,
     readPage,
+    readPasted,
     readingPage,
     pageStatus,
     applySuggestion,

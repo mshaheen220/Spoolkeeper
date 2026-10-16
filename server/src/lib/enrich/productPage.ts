@@ -127,18 +127,24 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
   const plate = text.match(/(?:plate|bed)\s*(?:material|surface|type)\s*:?\s*([A-Za-z][A-Za-z ]{2,40}?(?:PEI|plate|glass|PEO|PET)[A-Za-z ]{0,20})/i);
   if (plate) notes.push(`Plate: ${plate[1].trim()}`);
 
-  // Speed on one line: "Printing speed: 30-300mm/s" (the tiered table above takes precedence).
-  const speed = text.match(/(?:print(?:ing)?\s*)?speed[^0-9\n]{0,25}(\d{1,4})\s*(?:(?:-|–|~|to)\s*(\d{1,4})\s*)?mm\s*\/\s*s/i);
+  // Speed: "Printing speed: 30-300mm/s", or a spec tile "MAX SPEED\n300\nmm/s" (a tiered table above takes precedence).
+  // The unit must follow the number, so "Speed\nmm/s\n190-210 50-80" can't be misread.
+  const speed = text.match(/(?:(?:print(?:ing)?|max(?:imum)?)\s*)?speed[^0-9]{0,25}?(\d{1,4})\s*(?:(?:-|–|~|to)\s*(\d{1,4})\s*)?mm\s*\/\s*s/i);
   if (speed && !notes.some((n) => n.startsWith("Speed"))) notes.push(speed[0].replace(/\s+/g, " ").trim());
 
   // Retraction advice - there's no product field for it, but it's worth keeping for calibration.
   const retLen = text.match(new RegExp(`retraction\\s*(?:distance|length)${GAP}(\\d(?:\\.\\d+)?)(?:${TO}(\\d(?:\\.\\d+)?))?\\s*mm(?!\\s*\\/)`, "i"));
   const retSpeed = text.match(new RegExp(`retraction\\s*speed${GAP}(\\d{1,3})(?:${TO}(\\d{1,3}))?\\s*mm\\s*\\/\\s*s`, "i"));
+  // Enclosure advice ("ENCLOSURE\nNot needed") matters for warping-prone materials.
+  const enclosure = text.match(/enclosure\s*:?\s*(not needed|not required|required|recommended|optional)\b/i);
+  if (enclosure) notes.push(`Enclosure: ${enclosure[1].toLowerCase()}`);
+
   if (retLen && inRange(+retLen[1], 0, 10))
     notes.push(`Retraction: ${fmtRange(+retLen[1], retLen[2] ? +retLen[2] : +retLen[1], "mm")}${retSpeed ? ` at ${fmtRange(+retSpeed[1], retSpeed[2] ? +retSpeed[2] : +retSpeed[1], "mm/s")}` : ""}`);
 
-  // Drying: "Drying: 50°C for 4-6 hours", "dry at 55℃ 6h" - or just "Drying Temp. 50-60℃" with no time.
-  const dry = text.match(/dry(?:ing|ed)?\b[^0-9\n]{0,30}(\d{2,3})\s*(?:°|º|˚|℃)\s*C?[^0-9\n]{0,25}(\d{1,2}(?:\.\d)?)(?:\s*(?:-|–|~|to)\s*(\d{1,2}(?:\.\d)?))?\s*(?:h|hr|hrs|hours?)\b/i);
+  // Drying: "Drying: 50°C for 4-6 hours", "dry at 55℃ 6h", a tile "DRYING\n55°C\nfor 6h" - or just
+  // "Drying Temp. 50-60℃" with no time. A degree sign is required, so "dried for 24hrs" can't match.
+  const dry = text.match(/dry(?:ing|ed)?\b[^0-9]{0,30}(\d{2,3})\s*(?:°|º|˚|℃)\s*C?[^0-9]{0,25}(\d{1,2}(?:\.\d)?)(?:\s*(?:-|–|~|to)\s*(\d{1,2}(?:\.\d)?))?\s*(?:h|hr|hrs|hours?)\b/i);
   if (dry && inRange(+dry[1], 30, 120)) {
     add("dryTempC", +dry[1], dry);
     const hours = dry[3] ? +dry[3] : +dry[2];
@@ -163,7 +169,7 @@ export function extractFromText(text: string, ref: string): Suggestion[] {
 
   // Density: "Density: 1.24 g/cm3", or datasheet rows with the unit first - "Density ISO 1183 23℃ g/cm3 1.21".
   const density =
-    text.match(/density[^0-9\n]{0,25}(\d\.\d{1,3})\s*g\s*\/\s*cm/i) ??
+    text.match(/density[^0-9]{0,25}(\d\.\d{1,3})\s*g\s*\/\s*cm/i) ??
     text.match(/density\b[^\n]{0,60}?g\s*\/\s*cm(?:3|³)\)?[^0-9]{0,20}(\d\.\d{1,3})/i);
   if (density && inRange(+density[1], 0.8, 2.5)) add("density", +density[1], density);
 
@@ -267,6 +273,35 @@ function mergeNotes(list: Suggestion[]): Suggestion[] {
   return [merged, ...list.filter((s) => s.field !== "speedNote")];
 }
 
+const PASTE_LOOKS_LIMIT = 4000;
+
+/**
+ * Text the user copied from a page in their own browser - the fallback for
+ * stores that block automated requests or build their spec tables with
+ * scripts. Same extraction as a fetched page. Finishes and color layout are
+ * only read from a short paste (the spec section): a whole copied page
+ * includes the store's menus ("Silk PLA", "Matte PLA"...), which would
+ * suggest finishes this filament doesn't have.
+ */
+export function readPastedText(text: string, pageUrl?: string): Candidate {
+  const clean = text.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+  const ref = pageUrl?.trim() || "pasted page text";
+  const note = (s: Suggestion) => ({ ...s, note: s.note ? `pasted: ${s.note}` : "pasted page text" });
+  const found = extractFromText(clean, ref).map(note);
+  const warnings: string[] = [];
+  if (clean.length <= PASTE_LOOKS_LIMIT) found.push(...extractLooks(clean, ref).map(note));
+  else warnings.push("That was a whole page, so finishes and color layout weren't read from it - store menus mention other products. Set those yourself, or paste just the product description.");
+  return {
+    source: "product_url",
+    id: `pasted:${ref}`,
+    title: pageUrl ? `Pasted text from ${(() => { try { return new URL(pageUrl).hostname; } catch { return "the page"; } })()}` : "Pasted page text",
+    sourceRef: pageUrl ?? null,
+    score: 50,
+    suggestions: dedupeByField(mergeNotes(found)),
+    warnings,
+  };
+}
+
 /** Shopify stores expose clean product data at /products/<handle>.json. */
 async function shopifyText(url: URL): Promise<{ title?: string; text: string } | null> {
   const m = url.pathname.match(/\/products\/([^/?#]+)/);
@@ -309,6 +344,14 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
     throw new HttpError(502, `Couldn't read that page (${reason}). Many stores block automated requests; enter the values from the box instead.`);
   }
 
+  const warnings: string[] = [];
+  if (!html) {
+    const reason = pageError instanceof Error ? pageError.message.replace(/^.*returned /, "") : "no response";
+    warnings.push(
+      `The page itself was blocked (${reason}), so only the store's short product data was read. For the full specs, copy the page's text in your browser and use “Paste page text”.`,
+    );
+  }
+
   const products = jsonLdProducts(html);
   const ld = products[0];
   const corpus = [
@@ -331,8 +374,9 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
   if (sheet) {
     try {
       sheetFound = await datasheetSuggestions(sheet);
-    } catch {
+    } catch (err) {
       // An unreadable or blocked PDF shouldn't lose what the page itself gave.
+      warnings.push(`Found a datasheet but couldn't read it (${err instanceof Error ? err.message : "error"}): ${sheet}`);
     }
   }
   const suggestions = dedupeByField(mergeNotes([...pageFound, ...sheetFound]));
@@ -341,7 +385,7 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
 
   const title = shopify?.title ?? ld?.name ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? url.hostname;
   const shown = htmlToText(title).slice(0, 120) + (sheetFound.length ? " + datasheet" : "");
-  return { source: "product_url", id: ref, title: shown, sourceRef: ref, score: 50, suggestions };
+  return { source: "product_url", id: ref, title: shown, sourceRef: ref, score: 50, suggestions, warnings };
 }
 
 /** The corpus repeats itself (Shopify JSON + page HTML); keep the first hit per field. */

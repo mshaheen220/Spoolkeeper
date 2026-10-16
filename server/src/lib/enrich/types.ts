@@ -47,6 +47,8 @@ export interface Candidate {
   /** Relative match quality within a source; only used for ranking. */
   score: number;
   suggestions: Suggestion[];
+  /** Things the user should know about how complete this read was (blocked page, unreadable datasheet...). */
+  warnings?: string[];
 }
 
 export interface EnrichQuery {

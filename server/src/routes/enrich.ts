@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { enrich, lookupGtin } from "../lib/enrich";
 import { clearEnrichCache } from "../lib/enrich/fetch";
-import { readProductPage } from "../lib/enrich/productPage";
+import { readPastedText, readProductPage } from "../lib/enrich/productPage";
 import { asyncHandler } from "../lib/http";
 import { MATERIALS } from "../lib/materials";
 
@@ -42,6 +42,12 @@ enrichRouter.post(
     res.json({ candidate: await readProductPage(url) });
   }),
 );
+
+/** Text copied from a product page in the user's browser - for stores that block automated reads. */
+enrichRouter.post("/enrich/text", (req, res) => {
+  const { text, url } = z.object({ text: z.string().trim().min(20, "Paste the page's text").max(500_000), url: z.string().trim().max(2000).optional() }).parse(req.body);
+  res.json({ candidate: readPastedText(text, url) });
+});
 
 enrichRouter.post("/enrich/refresh", (_req, res) => {
   clearEnrichCache();

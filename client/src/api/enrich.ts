@@ -17,6 +17,7 @@ export interface Candidate {
   sourceRef: string | null;
   score: number;
   suggestions: Suggestion[];
+  warnings?: string[];
 }
 
 export interface EnrichResult {
@@ -61,6 +62,9 @@ export interface GtinMatch {
 
 export const lookupGtin = (code: string) =>
   request<{ matches: GtinMatch[] }>(`/api/enrich/gtin/${encodeURIComponent(code)}`).then((b) => b.matches);
+
+export const readPastedText = (text: string, url?: string) =>
+  request<{ candidate: Candidate }>("/api/enrich/text", { method: "POST", body: JSON.stringify({ text, url }) }).then((b) => b.candidate);
 
 export const readProductPage = (url: string) =>
   request<{ candidate: Candidate }>("/api/enrich/url", { method: "POST", body: JSON.stringify({ url }) }).then((b) => b.candidate);
