@@ -1,5 +1,6 @@
 import type { Candidate, EnrichQuery, Suggestion } from "./types";
 import { cachedJson, DAY_MS } from "./fetch";
+import type { Finish } from "../appearance";
 import { hexColor, norm, overlap, sameBrand } from "./text";
 
 // SpoolmanDB: the community filament dataset Spoolman ships with, compiled
@@ -23,6 +24,22 @@ export interface SpoolmanDbFilament {
   bed_temp: number | null;
   bed_temp_range: [number, number] | null;
   finish: string | null;
+  color_hexes?: string[] | null;
+  multi_color_direction?: "coaxial" | "longitudinal" | null;
+  pattern?: string | null;
+  translucent?: boolean;
+  glow?: boolean;
+}
+
+/** SpoolmanDB spreads appearance over finish/pattern/glow/translucent; the most distinctive one wins. */
+export function spoolmanDbFinish(row: SpoolmanDbFilament): Finish | null {
+  if (row.glow) return "Glow in the Dark";
+  if (row.pattern === "sparkle") return "Glitter";
+  if (row.pattern === "marble") return "Marble";
+  if (row.translucent) return "Translucent";
+  if (row.finish === "matte") return "Matte";
+  if (row.finish === "glossy") return "Glossy";
+  return null;
 }
 
 /** How well a SpoolmanDB row matches the query; 0 = not a candidate. */
@@ -55,7 +72,15 @@ export function suggestionsFromSpoolmanDb(row: SpoolmanDbFilament): Suggestion[]
   const add = (field: Suggestion["field"], value: string | number | null | undefined, note?: string) => {
     if (value !== null && value !== undefined && value !== "") out.push({ field, value, source: "spoolmandb", sourceRef: ref, note });
   };
-  add("colorHex", hexColor(row.color_hex));
+  const hexes = (row.color_hexes ?? []).map(hexColor).filter((h): h is string => !!h);
+  if (hexes.length >= 2) {
+    add("colorHexes", hexes.join(","), row.multi_color_direction ?? undefined);
+    add("colorHex", hexColor(row.color_hex) ?? hexes[0], row.color_hex ? undefined : "first of its colors");
+    add("multiColorDirection", row.multi_color_direction);
+  } else {
+    add("colorHex", hexColor(row.color_hex));
+  }
+  add("finish", spoolmanDbFinish(row));
   add("density", row.density);
   add("diameterMm", row.diameter);
   add("netWeightG", row.weight);

@@ -104,4 +104,28 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX imported_profiles_product ON imported_profiles(product_id);
   `,
+
+  /* 3: appearance - finish, multi-color, Shore hardness */ `
+  ALTER TABLE products ADD COLUMN finish TEXT;                 -- see lib/appearance.ts FINISHES
+  ALTER TABLE products ADD COLUMN color_hexes TEXT;            -- JSON ["#RRGGBB", ...] for multi-color; color_hex is the main one
+  ALTER TABLE products ADD COLUMN multi_color_direction TEXT;  -- coaxial | longitudinal
+  ALTER TABLE products ADD COLUMN shore_scale TEXT;            -- A | D
+  ALTER TABLE products ADD COLUMN shore_hardness INTEGER;
+
+  -- Products saved so far carry their finish in the line ("Silk", "Glow",
+  -- "Transparent"); copy it over, recorded as inferred so it's not mistaken
+  -- for something the user entered.
+  UPDATE products SET finish = CASE
+      WHEN lower(line) LIKE '%silk%' THEN 'Silk'
+      WHEN lower(line) LIKE '%matte%' THEN 'Matte'
+      WHEN lower(line) LIKE '%marble%' THEN 'Marble'
+      WHEN lower(line) LIKE '%glitter%' OR lower(line) LIKE '%sparkle%' THEN 'Glitter'
+      WHEN lower(line) LIKE '%glow%' THEN 'Glow in the Dark'
+      WHEN lower(line) LIKE '%translucent%' OR lower(line) LIKE '%transparent%' THEN 'Translucent'
+      WHEN lower(line) LIKE '%wood%' THEN 'Wood Fill'
+    END
+  WHERE line IS NOT NULL;
+  INSERT INTO field_sources (entity, entity_id, field, value, source, source_ref)
+    SELECT 'product', id, 'finish', json_quote(finish), 'inferred', 'from line "' || line || '"' FROM products WHERE finish IS NOT NULL;
+  `,
 ];

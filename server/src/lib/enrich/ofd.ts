@@ -1,5 +1,6 @@
 import type { Candidate, EnrichQuery, Suggestion } from "./types";
 import { cachedJson, cachedJsonOrNull, DAY_MS } from "./fetch";
+import type { ColorDirection, Finish } from "../appearance";
 import { hexColor, norm, overlap, sameBrand, tokens } from "./text";
 
 // Open Filament Database (Open Filament Collective / SimplyPrint, MIT): a
@@ -39,6 +40,8 @@ export interface OfdFilament {
   max_bed_temperature?: number;
   max_dry_temperature?: number;
   data_sheet_url?: string;
+  shore_hardness_a?: number;
+  shore_hardness_d?: number;
   variants?: (OfdLink & { name: string })[];
 }
 export interface OfdSize {
@@ -52,7 +55,9 @@ export interface OfdSize {
 export interface OfdVariant {
   id: string;
   name: string;
-  color_hex?: string;
+  /** A string, or several for a multi-color filament. */
+  color_hex?: string | string[];
+  traits?: Record<string, boolean>;
   sizes?: OfdSize[];
 }
 interface GtinEntry {
@@ -76,6 +81,36 @@ export function lineFromFilamentName(filamentName: string, material: string): st
   // Keep the original casing/spelling of the remaining words.
   const words = filamentName.split(/\s+/).filter((w) => norm(w) !== norm(material));
   return words.join(" ").trim() || null;
+}
+
+const TRAIT_FINISH: [string, Finish][] = [
+  ["glow", "Glow in the Dark"],
+  ["glitter", "Glitter"],
+  ["imitates_marble", "Marble"],
+  ["silk", "Silk"],
+  ["matte", "Matte"],
+  ["iridescent", "Iridescent"],
+  ["pearlescent", "Iridescent"],
+  ["translucent", "Translucent"],
+  ["transparent", "Translucent"],
+  ["imitates_wood", "Wood Fill"],
+  ["contains_wood", "Wood Fill"],
+  ["contains_carbon_fiber", "Carbon Fiber"],
+  ["contains_glass_fiber", "Glass Fiber"],
+  ["imitates_metal", "Metal Fill"],
+  ["contains_metal", "Metal Fill"],
+];
+
+export function ofdFinish(traits: Record<string, boolean> | undefined): Finish | null {
+  if (!traits) return null;
+  return TRAIT_FINISH.find(([t]) => traits[t])?.[1] ?? null;
+}
+
+/** OFD marks co-extruded (side-by-side) and gradual-change (along the length) multi-color filaments with traits. */
+export function ofdDirection(traits: Record<string, boolean> | undefined): ColorDirection | null {
+  if (traits?.coextruded) return "coaxial";
+  if (traits?.gradual_color_change) return "longitudinal";
+  return null;
 }
 
 /** Pick the size closest to what's on the spool (diameter first, then weight). */
@@ -109,10 +144,25 @@ export function suggestionsFromOfd(
   };
   if (variant) {
     add("colorName", variant.name);
-    add("colorHex", hexColor(variant.color_hex));
+    const hexes = (Array.isArray(variant.color_hex) ? variant.color_hex : [variant.color_hex]).map(hexColor).filter((h): h is string => !!h);
+    if (hexes.length >= 2) {
+      add("colorHexes", hexes.join(","));
+      add("colorHex", hexes[0], "first of its colors");
+      add("multiColorDirection", ofdDirection(variant.traits));
+    } else {
+      add("colorHex", hexes[0]);
+    }
+    add("finish", ofdFinish(variant.traits));
     add("ofdId", variant.id);
   }
   add("density", filament.density);
+  if (filament.shore_hardness_a != null) {
+    add("shoreScale", "A");
+    add("shoreHardness", filament.shore_hardness_a);
+  } else if (filament.shore_hardness_d != null) {
+    add("shoreScale", "D");
+    add("shoreHardness", filament.shore_hardness_d);
+  }
   add("nozzleMin", filament.min_print_temperature);
   add("nozzleMax", filament.max_print_temperature);
   add("bedMin", filament.min_bed_temperature);

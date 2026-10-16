@@ -4,6 +4,12 @@ import type { Source } from "../schemas";
 export type EnrichField =
   | "colorName"
   | "colorHex"
+  /** Comma-separated "#RRGGBB,#RRGGBB" so it compares and displays like other values. */
+  | "colorHexes"
+  | "multiColorDirection"
+  | "finish"
+  | "shoreScale"
+  | "shoreHardness"
   | "density"
   | "diameterMm"
   | "netWeightG"

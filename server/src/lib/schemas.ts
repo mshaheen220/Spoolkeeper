@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COLOR_DIRECTIONS, FINISHES, SHORE_SCALES } from "./appearance";
 
 // Request bodies. Optional fields accept null so the client can clear a
 // value; empty strings from untouched form inputs are normalized to null.
@@ -16,7 +17,8 @@ const hex = z.preprocess(
     .nullish(),
 );
 
-export const SOURCES = ["manual", "ofd", "spoolmandb", "spoolz", "product_url", "orca_import", "default"] as const;
+// "inferred": derived by Spoolkeeper from other data (e.g. finish from a "Silk" line), never entered or sourced.
+export const SOURCES = ["manual", "ofd", "spoolmandb", "spoolz", "product_url", "orca_import", "default", "inferred"] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const productFields = {
@@ -24,6 +26,19 @@ export const productFields = {
   line: optText,
   colorName: optText,
   colorHex: hex,
+  // Multi-color: 2-6 colors (comma-separated string accepted from forms); colorHex is the main one.
+  colorHexes: z.preprocess(
+    (v) => (typeof v === "string" ? (v.trim() === "" ? null : v.split(",")) : v),
+    z
+      .array(z.string().trim().regex(/^#?[0-9a-fA-F]{6}$/, "colors must be 6-digit hex").transform((s) => `#${s.replace("#", "").toUpperCase()}`))
+      .min(2, "a multi-color filament needs at least 2 colors")
+      .max(6)
+      .nullish(),
+  ),
+  multiColorDirection: z.preprocess(blankToNull, z.enum(COLOR_DIRECTIONS).nullish()),
+  finish: z.preprocess(blankToNull, z.enum(FINISHES).nullish()),
+  shoreScale: z.preprocess(blankToNull, z.enum(SHORE_SCALES).nullish()),
+  shoreHardness: z.preprocess(blankToNull, z.coerce.number().int().min(0).max(100).nullish()),
   diameterMm: optNum,
   density: optNum,
   netWeightG: optNum,

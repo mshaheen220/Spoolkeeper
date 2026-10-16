@@ -75,7 +75,13 @@ export function buildProfile(opts: {
 
   put("filament_vendor", product.vendor.name, { source: "manual", why: "Groups the preset under its brand in OrcaSlicer." });
   put("filament_type", product.material, { ...src("material"), why: "Tells OrcaSlicer which material rules apply (e.g. PLA vs PETG cooling)." });
-  put("default_filament_colour", product.colorHex, { ...src("colorHex"), why: "The swatch color in the filament dropdown and 3D preview." });
+  const multi = product.colorHexes && product.colorHexes.length >= 2;
+  put("default_filament_colour", product.colorHex, {
+    ...src("colorHex"),
+    why: multi
+      ? `Main color of ${product.colorHexes!.length}: OrcaSlicer presets hold one color, so this one stands in for the whole spool.`
+      : "The swatch color in the filament dropdown and 3D preview.",
+  });
   put("filament_diameter", product.diameterMm, { ...src("diameterMm"), why: "Used to convert extruded volume into filament length." });
   put("filament_density", product.density, { ...src("density"), why: "Converts length to grams for weight and cost estimates." });
   put("filament_spool_weight", product.spoolWeightG, { ...src("spoolWeightG"), why: "Empty spool weight, for weighing what's left." });
@@ -102,7 +108,17 @@ export function buildProfile(opts: {
   const json: Record<string, unknown> = {
     compatible_printers: [printerProfile],
     compatible_printers_condition: "",
-    filament_notes: [`Managed by Spoolkeeper - edit values there, not here.\n${tag}`],
+    filament_notes: [
+      [
+        "Managed by Spoolkeeper - edit values there, not here.",
+        multi ? `Colors: ${product.colorHexes!.join(", ")}${product.multiColorDirection ? ` (${product.multiColorDirection})` : ""}` : null,
+        product.finish && product.finish !== "Standard" ? `Finish: ${product.finish}` : null,
+        product.shoreHardness != null ? `Shore ${product.shoreHardness}${product.shoreScale ?? ""}` : null,
+        tag,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    ],
     filament_settings_id: [name],
     from: "User",
     inherits: base.inherits,

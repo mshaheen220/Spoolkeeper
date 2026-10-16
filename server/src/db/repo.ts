@@ -1,3 +1,4 @@
+import { mainColor } from "../lib/appearance";
 import type { ProductInput, Source } from "../lib/schemas";
 import { getDb } from ".";
 
@@ -16,7 +17,13 @@ export interface Product {
   material: string;
   line: string | null;
   colorName: string | null;
+  /** The main color - the one OrcaSlicer shows. Always one of colorHexes when those are set. */
   colorHex: string | null;
+  colorHexes: string[] | null;
+  multiColorDirection: "coaxial" | "longitudinal" | null;
+  finish: string | null;
+  shoreScale: "A" | "D" | null;
+  shoreHardness: number | null;
   diameterMm: number;
   density: number | null;
   netWeightG: number | null;
@@ -65,6 +72,11 @@ const PRODUCT_COLUMNS: Record<Exclude<keyof ProductInput, "vendor">, string> = {
   line: "line",
   colorName: "color_name",
   colorHex: "color_hex",
+  colorHexes: "color_hexes",
+  multiColorDirection: "multi_color_direction",
+  finish: "finish",
+  shoreScale: "shore_scale",
+  shoreHardness: "shore_hardness",
   diameterMm: "diameter_mm",
   density: "density",
   netWeightG: "net_weight_g",
@@ -121,6 +133,7 @@ const PRODUCT_SELECT = `
 function rowToProduct(r: Row): Product {
   const out: Record<string, unknown> = { id: r.id };
   for (const [key, col] of Object.entries(PRODUCT_COLUMNS)) out[key] = r[col] ?? null;
+  out.colorHexes = typeof r.color_hexes === "string" ? (JSON.parse(r.color_hexes) as string[]) : null;
   const vendor: Vendor = { id: r.vendor_id as number, name: r.v_name as string, website: r.v_website as string | null, notes: r.v_notes as string | null };
   const product = out as unknown as Product;
   product.vendor = vendor;
@@ -176,7 +189,26 @@ export function findMatchingProduct(input: Pick<ProductInput, "vendor" | "materi
   return hit ?? null;
 }
 
-export function createProduct(input: ProductInput): Product {
+/** Arrays (colorHexes) are stored as JSON text. */
+const toColumn = (v: unknown) => (Array.isArray(v) ? JSON.stringify(v) : v);
+
+/**
+ * Keep the main color valid: one of the colors when multi-color, the first
+ * one by default. Clearing the color list (back to single color) leaves
+ * the main color as the filament's color.
+ */
+function normalizeColors<T extends Partial<ProductInput>>(input: T, current?: Product | null): T {
+  const touchesColors = input.colorHexes !== undefined || input.colorHex !== undefined;
+  if (!touchesColors) return input;
+  const hexes = input.colorHexes !== undefined ? input.colorHexes : (current?.colorHexes ?? null);
+  const main = input.colorHex !== undefined ? input.colorHex : (current?.colorHex ?? null);
+  const out = { ...input, colorHex: mainColor(main, hexes) };
+  if (!hexes || hexes.length === 0) (out as Partial<ProductInput>).multiColorDirection = null; // direction only means something with 2+ colors
+  return out;
+}
+
+export function createProduct(rawInput: ProductInput): Product {
+  const input = normalizeColors(rawInput);
   const vendor = upsertVendor(input.vendor);
   const cols = ["vendor_id"];
   const vals: unknown[] = [vendor.id];
@@ -184,7 +216,7 @@ export function createProduct(input: ProductInput): Product {
     const v = input[key as keyof typeof PRODUCT_COLUMNS];
     if (v !== undefined && v !== null) {
       cols.push(col);
-      vals.push(v);
+      vals.push(toColumn(v));
     }
   }
   const info = getDb()
@@ -193,7 +225,8 @@ export function createProduct(input: ProductInput): Product {
   return getProduct(Number(info.lastInsertRowid))!;
 }
 
-export function updateProduct(id: number, patch: Partial<ProductInput>): Product | null {
+export function updateProduct(id: number, rawPatch: Partial<ProductInput>): Product | null {
+  const patch = normalizeColors(rawPatch, getProduct(id));
   const sets: string[] = [];
   const vals: unknown[] = [];
   if (patch.vendor) {
@@ -204,7 +237,7 @@ export function updateProduct(id: number, patch: Partial<ProductInput>): Product
     const v = patch[key as keyof typeof PRODUCT_COLUMNS];
     if (v !== undefined) {
       sets.push(`${col} = ?`);
-      vals.push(v);
+      vals.push(toColumn(v));
     }
   }
   if (sets.length) {

@@ -1,0 +1,141 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import Database from "better-sqlite3";
+import request from "supertest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "../app";
+import { openDb, setDb } from "../db";
+import { MIGRATIONS } from "../db/migrations";
+import { finishFromWord, mainColor } from "./appearance";
+import { ofdDirection, ofdFinish, suggestionsFromOfd } from "./enrich/ofd";
+import { spoolmanDbFinish, suggestionsFromSpoolmanDb, type SpoolmanDbFilament } from "./enrich/spoolmandb";
+
+describe("appearance helpers", () => {
+  it("reads a finish from line or name words", () => {
+    expect(finishFromWord("Silk")).toBe("Silk");
+    expect(finishFromWord("Glow in The Dark Blue")).toBe("Glow in the Dark");
+    expect(finishFromWord("Transparent")).toBe("Translucent");
+    expect(finishFromWord("Fast Gradient Twinkling Translucent Rose")).toBe("Glitter");
+    expect(finishFromWord("Basic")).toBeNull();
+  });
+
+  it("keeps the main color one of the filament's colors", () => {
+    expect(mainColor("#111111", null)).toBe("#111111");
+    expect(mainColor(null, ["#0000FF", "#800080"])).toBe("#0000FF");
+    expect(mainColor("#800080", ["#0000FF", "#800080"])).toBe("#800080");
+    expect(mainColor("#FFFFFF", ["#0000FF", "#800080"])).toBe("#0000FF");
+  });
+});
+
+describe("multi-color filaments via the API", () => {
+  const app = createApp();
+  beforeEach(() => setDb(openDb(":memory:")));
+  const dual = {
+    vendor: "Epelay",
+    material: "PLA",
+    colorName: "Dual Color Blue & Purple",
+    colorHexes: ["#1e3cff", "#9a58c4"],
+    multiColorDirection: "coaxial",
+    finish: "Silk",
+  };
+
+  it("defaults the main color to the first color and exports it to OrcaSlicer", async () => {
+    const res = await request(app).post("/api/spools").send({ product: dual }).expect(201);
+    const p = res.body.spools[0].product;
+    expect(p).toMatchObject({ colorHexes: ["#1E3CFF", "#9A58C4"], colorHex: "#1E3CFF", multiColorDirection: "coaxial", finish: "Silk" });
+    const profile = await request(app).get(`/api/spools/${res.body.spools[0].id}/profile`).expect(200);
+    expect(profile.body.orca.json.default_filament_colour).toEqual(["#1E3CFF"]);
+    expect(profile.body.orca.json.filament_notes[0]).toContain("Colors: #1E3CFF, #9A58C4 (coaxial)");
+  });
+
+  it("lets the user pick another main color, and falls back when it isn't one of the colors", async () => {
+    const res = await request(app).post("/api/spools").send({ product: dual }).expect(201);
+    const id = res.body.spools[0].product.id;
+    expect((await request(app).patch(`/api/products/${id}`).send({ colorHex: "#9A58C4" })).body.product.colorHex).toBe("#9A58C4");
+    expect((await request(app).patch(`/api/products/${id}`).send({ colorHex: "#FFFFFF" })).body.product.colorHex).toBe("#1E3CFF");
+  });
+
+  it("going back to a single color clears the direction", async () => {
+    const res = await request(app).post("/api/spools").send({ product: dual }).expect(201);
+    const id = res.body.spools[0].product.id;
+    const back = await request(app).patch(`/api/products/${id}`).send({ colorHexes: null, colorHex: "#9A58C4" }).expect(200);
+    expect(back.body.product).toMatchObject({ colorHexes: null, colorHex: "#9A58C4", multiColorDirection: null });
+  });
+
+  it("validates finish, direction and Shore values", async () => {
+    await request(app).post("/api/spools").send({ product: { ...dual, finish: "Sparkly" } }).expect(400);
+    await request(app).post("/api/spools").send({ product: { ...dual, multiColorDirection: "diagonal" } }).expect(400);
+    await request(app).post("/api/spools").send({ product: { ...dual, colorHexes: ["#123456"] } }).expect(400);
+    const tpu = await request(app)
+      .post("/api/spools")
+      .send({ product: { vendor: "Inslogic", material: "TPU", shoreScale: "A", shoreHardness: 95 } })
+      .expect(201);
+    expect(tpu.body.spools[0].product).toMatchObject({ shoreScale: "A", shoreHardness: 95 });
+  });
+});
+
+describe("migration 3", () => {
+  it("backfills finish from existing lines and records it as inferred", () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "spoolkeeper-mig-")), "db.sqlite");
+    const old = new Database(file);
+    old.exec(MIGRATIONS[0]);
+    old.exec(MIGRATIONS[1]);
+    old.pragma("user_version = 2");
+    old.exec(`INSERT INTO vendors (id, name) VALUES (1, 'Overture');
+      INSERT INTO products (id, vendor_id, material, line, color_name) VALUES (1, 1, 'PLA', 'Silk', 'Silver'), (2, 1, 'PLA', NULL, 'White');`);
+    old.close();
+
+    const db = openDb(file);
+    expect(db.prepare("SELECT id, finish FROM products ORDER BY id").all()).toEqual([
+      { id: 1, finish: "Silk" },
+      { id: 2, finish: null },
+    ]);
+    expect(db.prepare("SELECT field, value, source FROM field_sources").all()).toEqual([{ field: "finish", value: '"Silk"', source: "inferred" }]);
+  });
+});
+
+describe("enrichment of appearance", () => {
+  const row: SpoolmanDbFilament = {
+    id: "anycubic_pla_mattegreen-brown_1000_175_c",
+    manufacturer: "ANYCUBIC",
+    name: "Matte Green-Brown",
+    material: "PLA",
+    density: 1.24,
+    weight: 1000,
+    spool_weight: 125,
+    spool_type: "cardboard",
+    diameter: 1.75,
+    color_hex: null,
+    color_hexes: ["744E10", "009639"],
+    extruder_temp: 210,
+    extruder_temp_range: null,
+    bed_temp: 60,
+    bed_temp_range: null,
+    finish: "matte",
+    multi_color_direction: "coaxial",
+    pattern: null,
+    translucent: false,
+    glow: false,
+  };
+
+  it("maps SpoolmanDB multi-color rows, picking the first color as main", () => {
+    const by = Object.fromEntries(suggestionsFromSpoolmanDb(row).map((s) => [s.field, s.value]));
+    expect(by).toMatchObject({ colorHexes: "#744E10,#009639", colorHex: "#744E10", multiColorDirection: "coaxial", finish: "Matte" });
+    expect(spoolmanDbFinish({ ...row, glow: true })).toBe("Glow in the Dark");
+    expect(spoolmanDbFinish({ ...row, pattern: "sparkle", finish: null })).toBe("Glitter");
+  });
+
+  it("maps OFD traits, multi-color hexes and Shore hardness", () => {
+    expect(ofdFinish({ silk: true, coextruded: true })).toBe("Silk");
+    expect(ofdDirection({ gradual_color_change: true })).toBe("longitudinal");
+    const s = suggestionsFromOfd(
+      { id: "f", name: "TPU 95A", shore_hardness_a: 95 },
+      { id: "v", name: "Rainbow", color_hex: ["#ff0000", "#00ff00", "#0000ff"], traits: { gradual_color_change: true } },
+      null,
+      "ref",
+    );
+    const by = Object.fromEntries(s.map((x) => [x.field, x.value]));
+    expect(by).toMatchObject({ colorHexes: "#FF0000,#00FF00,#0000FF", colorHex: "#FF0000", multiColorDirection: "longitudinal", shoreScale: "A", shoreHardness: 95 });
+  });
+});

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { finishFromWord, type Finish } from "../appearance";
 import { MATERIALS } from "../materials";
 import { hexColor, norm, tokens } from "../enrich/text";
 
@@ -63,6 +64,8 @@ export interface OrcaImportRow {
   line: string | null;
   colorName: string | null;
   colorHex: string | null;
+  /** Read from words like "Silk" or "Transparent" in the name - inferred, not stated by the profile. */
+  finish: Finish | null;
   density: number | null;
   diameterMm: number | null;
   spoolWeightG: number | null;
@@ -164,6 +167,7 @@ export function parseOrcaFilament(fileName: string, json: Record<string, unknown
     line: lineWord ? lineWord[0].toUpperCase() + lineWord.slice(1).toLowerCase() : null,
     colorName,
     colorHex: hexColor(orcaValue(json.default_filament_colour)),
+    finish: finishFromWord(`${lineWord ?? ""} ${profileName} ${baseName}`),
     density: orcaNumber(json.filament_density),
     diameterMm: orcaNumber(json.filament_diameter),
     spoolWeightG: orcaNumber(json.filament_spool_weight),
