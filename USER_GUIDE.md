@@ -41,7 +41,26 @@ If you already have this filament, a banner offers **Add another spool of this**
 
 Under each field, a short note explains why the value matters. Badges show where every value came from: **You**, **OFD** (Open Filament Database), **SpoolmanDB**, **spoolz**, **Page**, **Orca** or **Default**.
 
-## 3. A spool's page
+## 3. Colors, finish and flexibility
+
+Every filament has a **Look** section, both when you add a spool and when you edit a filament.
+
+- **Single or Multi-color.** For dual-color, tri-color or rainbow filament, switch to **Multi-color** and list 2–6 colors.
+  - **How the colors change.** *Side by side (coaxial)* means the colors run together down the strand, as in dual- and tri-color silk; every layer shows all of them. *Along the length* means the color shifts as the spool unwinds, as in gradient or rainbow filament.
+  - **★ Main color.** OrcaSlicer can only show one color per filament. Spoolkeeper sends it the starred color: the first one unless you star another. The center of the swatch shows which one it is.
+- **Finish.** Silk, Matte, Marble, Glitter, Glow in the Dark, Translucent, Wood Fill, and so on. Picking *Silk PLA*, *Matte PLA* or *Wood PLA* sets it for you. Filaments you imported got their finish from words in their names; those show an **Inferred** badge until you confirm or change them.
+- **Shore hardness.** Shown automatically for TPU and other flexibles, or tap *Flexible filament? Add Shore hardness*. Enter the number and scale, for example 95 A.
+
+Lookups also suggest these values when the databases know them.
+
+## 4. Edit a filament
+
+On any spool's page, tap **✎ Edit filament**. This is the way to fill in what an import couldn't know, such as colors, finish or Shore hardness, or to fix a name.
+
+- **Look up filament data** works here too, for filling in older filaments.
+- Changes apply to every spool of that filament. The Save button counts how many fields you changed.
+
+## 5. A spool's page
 
 Tap a spool in the list to see:
 
@@ -52,7 +71,7 @@ Tap a spool in the list to see:
 - **Other spools of this filament.**
 - **Archive** hides the spool from the list once it's empty.
 
-## 4. Get a profile into OrcaSlicer
+## 6. Get a profile into OrcaSlicer
 
 On a spool's page, under **OrcaSlicer profile**:
 
@@ -61,7 +80,7 @@ On a spool's page, under **OrcaSlicer profile**:
 3. Tap **Download .json**, then in OrcaSlicer use **File → Import → Import Configs…**.
    - Or download the **zip** and copy both files into `~/Library/Application Support/OrcaSlicer/user/default/filament/`, then restart OrcaSlicer.
 
-The preset inherits the matching Creality base profile and only appears when your **TheHammer 0.4** printer is selected.
+The preset inherits the matching Creality base profile and only appears when your **TheHammer 0.4** printer is selected. Its color is the filament's color, or the ★ main color for a multi-color filament. All the colors, the finish and the Shore hardness are written into the preset's notes.
 
 The amber **Not tuned yet** box lists what calibration will fill in: temperature, flow ratio, pressure advance, retraction and max volumetric speed. Until then OrcaSlicer uses the base profile's values for those, and nothing is guessed.
 

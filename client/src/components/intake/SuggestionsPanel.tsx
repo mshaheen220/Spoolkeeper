@@ -1,5 +1,5 @@
 import type { Candidate, EnrichResult, Suggestion } from "../../api/enrich";
-import { DETAIL_FIELDS, type ProductFieldKey } from "../../lib/productFields";
+import { DETAIL_FIELDS, DIRECTION_LABELS, type ProductFieldKey } from "../../lib/productFields";
 import { SOURCE_PRIORITY, valueKey, type FieldOption, type Selection } from "../../lib/suggestions";
 import { SOURCE_LABELS, type Source } from "../../types";
 import { SourceBadge } from "../SourceBadge";
@@ -108,8 +108,15 @@ export function SuggestionsPanel({ result, selection, onSelect, options, values,
                         >
                           <span className="flex max-w-full items-center gap-1.5">
                             {f.type === "color" && <span aria-hidden className="h-3.5 w-3.5 rounded-full border border-ink-600" style={{ background: o.value }} />}
+                            {f.type === "colors" && (
+                              <span aria-hidden className="flex">
+                                {o.value.split(",").map((h) => (
+                                  <span key={h} className="-mr-1 h-3.5 w-3.5 rounded-full border border-ink-600" style={{ background: h }} />
+                                ))}
+                              </span>
+                            )}
                             <span className="truncate font-medium">
-                              {o.value}
+                              {f.key === "multiColorDirection" ? (DIRECTION_LABELS[o.value]?.label ?? o.value) : f.type === "colors" ? o.value.split(",").join(" ") : o.value}
                               {f.unit && ` ${f.unit}`}
                             </span>
                             {active && <span aria-hidden>✓</span>}

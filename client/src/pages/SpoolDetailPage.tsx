@@ -6,6 +6,7 @@ import { SourceBadge } from "../components/SourceBadge";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
 import { grams, money, range } from "../lib/format";
+import { DIRECTION_LABELS } from "../lib/productFields";
 import type { FieldSource } from "../types";
 
 function Row({ label, value, sources }: { label: string; value: ReactNode; sources?: (FieldSource | undefined)[] }) {
@@ -55,7 +56,7 @@ export function SpoolDetailPage() {
       </Link>
 
       <div className="flex items-center gap-3">
-        <Swatch hex={p.colorHex} size={48} />
+        <Swatch hex={p.colorHex} hexes={p.colorHexes} direction={p.multiColorDirection} size={48} />
         <div className="min-w-0">
           <h1 className="text-lg leading-tight font-semibold">{p.displayName}</h1>
           <p className="text-sm text-ink-400">
@@ -66,9 +67,14 @@ export function SpoolDetailPage() {
       </div>
 
       <section className="card" aria-labelledby="filament-heading">
-        <h2 id="filament-heading" className="text-sm font-semibold tracking-wide text-ink-300 uppercase">
-          Filament
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="filament-heading" className="text-sm font-semibold tracking-wide text-ink-300 uppercase">
+            Filament
+          </h2>
+          <Link to={`/products/${p.id}/edit?spool=${spool.id}`} className="btn py-1 text-xs">
+            ✎ Edit filament
+          </Link>
+        </div>
         <dl className="divide-y divide-ink-800">
           <Row label="Brand" value={p.vendor.name} />
           <Row label="Material" value={[p.material, p.line].filter(Boolean).join(" · ")} sources={[ps.material, ps.line]} />
@@ -84,6 +90,32 @@ export function SpoolDetailPage() {
             }
             sources={[ps.colorName, ps.colorHex]}
           />
+          {p.colorHexes && p.colorHexes.length >= 2 && (
+            <Row
+              label="Colors"
+              value={
+                <span className="inline-flex flex-col items-end gap-1">
+                  <span className="inline-flex flex-wrap justify-end gap-1">
+                    {p.colorHexes.map((h) => (
+                      <span
+                        key={h}
+                        title={h === p.colorHex ? `${h} - main color (OrcaSlicer)` : h}
+                        className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[11px] ${h === p.colorHex ? "border-accent-500" : "border-ink-700"}`}
+                      >
+                        <span aria-hidden className="h-3 w-3 rounded-full" style={{ background: h }} />
+                        {h}
+                        {h === p.colorHex && <span aria-label="main color">★</span>}
+                      </span>
+                    ))}
+                  </span>
+                  {p.multiColorDirection && <span className="text-xs text-ink-400">{DIRECTION_LABELS[p.multiColorDirection]?.label}</span>}
+                </span>
+              }
+              sources={[ps.colorHexes, ps.multiColorDirection]}
+            />
+          )}
+          <Row label="Finish" value={p.finish} sources={[ps.finish]} />
+          <Row label="Shore hardness" value={p.shoreHardness != null ? `${p.shoreHardness}${p.shoreScale ?? ""}` : null} sources={[ps.shoreHardness, ps.shoreScale]} />
           <Row label="Diameter" value={p.diameterMm ? `${p.diameterMm} mm` : null} sources={[ps.diameterMm]} />
           <Row label="Density" value={p.density ? `${p.density} g/cm³` : null} sources={[ps.density]} />
           <Row label="Net weight" value={grams(p.netWeightG)} sources={[ps.netWeightG]} />

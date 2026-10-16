@@ -1,6 +1,6 @@
 // Mirrors the server's API shapes (server/src/db/repo.ts).
 
-export type Source = "manual" | "ofd" | "spoolmandb" | "spoolz" | "product_url" | "orca_import" | "default";
+export type Source = "manual" | "ofd" | "spoolmandb" | "spoolz" | "product_url" | "orca_import" | "default" | "inferred";
 
 export interface Vendor {
   id: number;
@@ -9,11 +9,19 @@ export interface Vendor {
   notes: string | null;
 }
 
+export type ColorDirection = "coaxial" | "longitudinal";
+
 export interface ProductFields {
   material: string;
   line: string | null;
   colorName: string | null;
+  /** Main color - the one OrcaSlicer shows; one of colorHexes for a multi-color filament. */
   colorHex: string | null;
+  colorHexes: string[] | null;
+  multiColorDirection: ColorDirection | null;
+  finish: string | null;
+  shoreScale: "A" | "D" | null;
+  shoreHardness: number | null;
   diameterMm: number | null;
   density: number | null;
   netWeightG: number | null;
@@ -85,6 +93,7 @@ export const SOURCE_LABELS: Record<Source, string> = {
   product_url: "Product page",
   orca_import: "OrcaSlicer import",
   default: "Default",
+  inferred: "Inferred",
 };
 
 /** Compact labels for tight spots (form field headers). */
@@ -96,4 +105,5 @@ export const SOURCE_SHORT_LABELS: Record<Source, string> = {
   product_url: "Page",
   orca_import: "Orca",
   default: "Default",
+  inferred: "Inferred",
 };

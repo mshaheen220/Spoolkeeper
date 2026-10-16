@@ -8,6 +8,7 @@ const STYLES: Record<Source, string> = {
   product_url: "border-amber-500/50 bg-amber-500/15 text-amber-300 day:text-amber-800",
   orca_import: "border-rose-500/50 bg-rose-500/15 text-rose-300 day:text-rose-800",
   default: "border-ink-600 bg-ink-900 text-ink-400",
+  inferred: "border-ink-600 border-dashed bg-ink-900 text-ink-300",
 };
 
 /** Where a value came from. Links out when the source has a URL. */

@@ -42,8 +42,9 @@ Native dev uses `:3003` for the API because chocolate-mold-factory already holds
 
 ```
 client/                 React 19 + TypeScript + Tailwind 4 (Vite), react-router
-  src/pages/            SpoolsPage, SpoolDetailPage, IntakePage, ImportPage, SettingsPage
-  src/components/       Header, TipsPanel, ThemeSwitcher, FormField, SourceBadge, ProfileCard, intake/
+  src/pages/            SpoolsPage, SpoolDetailPage, IntakePage, EditProductPage, ImportPage, SettingsPage
+  src/hooks/            useProductForm (values + provenance + lookup, shared by intake and edit)
+  src/components/       Header, TipsPanel, ThemeSwitcher, FormField, SourceBadge, Swatch, ProfileCard, product/ (ColorEditor, sections), intake/
   src/lib/              suggestions (merging), productFields (labels + "why it matters"), barcode
 server/                 Express + TypeScript, better-sqlite3, zod
   src/db/               migrations (PRAGMA user_version), repo (all SQL)
@@ -60,9 +61,9 @@ data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 | Table | Holds |
 |---|---|
 | `vendors` | Brands, case-insensitively unique |
-| `products` | One purchasable filament: brand + material (OrcaSlicer `filament_type`) + line (Wood, Silk, …) + color, plus physical and maker values |
+| `products` | One purchasable filament: brand + material (OrcaSlicer `filament_type`) + line + color, plus physical and maker values. Appearance: `finish`, `color_hexes` (JSON, 2–6 colors) and `multi_color_direction` (`coaxial` or `longitudinal`), with `color_hex` as the **main** color (always one of `color_hexes`, the first by default; it's what OrcaSlicer's single `default_filament_colour` gets), plus `shore_scale` / `shore_hardness` |
 | `spools` | Physical rolls; `id` is the **Spool #ID** on labels and profile names |
-| `field_sources` | Provenance for every stored value: `manual`, `ofd`, `spoolmandb`, `spoolz`, `product_url`, `orca_import` or `default`, plus a reference |
+| `field_sources` | Provenance for every stored value: `manual`, `ofd`, `spoolmandb`, `spoolz`, `product_url`, `orca_import`, `default` or `inferred` (derived by Spoolkeeper, e.g. finish from a "Silk" line), plus a reference |
 | `imported_profiles` | OrcaSlicer presets seen at import, with the tunable keys they set (untrusted starting values) |
 | `enrich_cache` | Cached dataset responses (served stale when offline) |
 | `settings` | e.g. `printerProfile` |
@@ -110,7 +111,7 @@ Verified against OrcaSlicer 2.4.2's own user presets:
 - **Values.** Each one is a single-element string array. Keys are sorted, with 4-space indent.
 - **`inherits`.** The material's Creality generic (`Creality Generic PLA`/`PETG`/`TPU`/`ABS`/`ASA`/`PLA-CF`), or OrcaFilamentLibrary's `Generic X @System`; see `server/src/lib/orca/bases.ts`.
 - **`compatible_printers`.** `["TheHammer  0.4 nozzle"]`. Note the double space; it's configurable in Settings.
-- **`filament_notes`.** Carries `spoolkeeper:spool=<id>;product=<id>`, which marks files Spoolkeeper owns.
+- **`filament_notes`.** Lists all colors (and direction), the finish and the Shore hardness, which have no preset keys. It ends with `spoolkeeper:spool=<id>;product=<id>`, which marks files Spoolkeeper owns. OrcaSlicer 2.4.2's `filament_multi_colour` / `filament_colour_type` are per-project filament-slot settings, not preset keys, so presets carry only the main color.
 - **`.info`.** `base_id` is the base's `filament_id` (e.g. `GFL99`).
 
 ## Conventions

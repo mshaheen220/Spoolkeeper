@@ -6,7 +6,7 @@ export interface FieldMeta {
   key: ProductFieldKey;
   label: string;
   unit?: string;
-  type: "text" | "number" | "url" | "color";
+  type: "text" | "number" | "url" | "color" | "colors" | "select";
   step?: number;
   /** Short "why this matters" help - most profiles start as guesses, so explain each value. */
   help?: string;
@@ -16,6 +16,11 @@ export interface FieldMeta {
 export const DETAIL_FIELDS: FieldMeta[] = [
   { key: "colorName", label: "Color name", type: "text" },
   { key: "colorHex", label: "Color", type: "color", help: "Shown in OrcaSlicer's filament dropdown and on the 3D preview." },
+  { key: "colorHexes", label: "Colors (multi-color)", type: "colors" },
+  { key: "multiColorDirection", label: "Color direction", type: "select" },
+  { key: "finish", label: "Finish", type: "select" },
+  { key: "shoreScale", label: "Shore scale", type: "select" },
+  { key: "shoreHardness", label: "Shore hardness", type: "number" },
   {
     key: "density",
     label: "Density",
@@ -51,18 +56,65 @@ export const DETAIL_FIELDS: FieldMeta[] = [
   { key: "gtin", label: "Barcode (GTIN/EAN)", type: "text" },
 ];
 
+/** Fields with their own editors (identity, color, appearance); the rest go in the generic details grid. */
+const CUSTOM_EDITORS: ProductFieldKey[] = [
+  "colorName",
+  "colorHex",
+  "colorHexes",
+  "multiColorDirection",
+  "finish",
+  "shoreScale",
+  "shoreHardness",
+  "diameterMm",
+  "netWeightG",
+  "productUrl",
+];
+export const GRID_FIELDS = DETAIL_FIELDS.filter((f) => !CUSTOM_EDITORS.includes(f.key));
+
+/** Same vocabulary as the server (server/src/lib/appearance.ts). */
+export const FINISHES = [
+  "Standard",
+  "Silk",
+  "Matte",
+  "Glossy",
+  "Marble",
+  "Glitter",
+  "Glow in the Dark",
+  "Translucent",
+  "Iridescent",
+  "Wood Fill",
+  "Carbon Fiber",
+  "Glass Fiber",
+  "Metal Fill",
+  "Other",
+];
+
+export const FINISH_HELP =
+  "How it looks. Silk and glitter usually want slower outer walls; matte hides layer lines; translucent shows infill through thin walls.";
+
+export const DIRECTION_LABELS: Record<string, { label: string; help: string }> = {
+  coaxial: { label: "Side by side (coaxial)", help: "The colors run together down the strand, like dual- and tri-color silk; every layer shows all of them." },
+  longitudinal: { label: "Along the length", help: "The color changes as the spool unwinds, like gradient or rainbow filament; it shifts as the print grows." },
+};
+
+export const SHORE_HELP =
+  "How soft a flexible filament is: Shore A for TPU/TPE (lower is softer - 85A is squishy, 95A is firm), Shore D for harder plastics. Softer filament needs slower printing and gentle retraction.";
+
+/** Materials where Shore hardness is worth showing up front. */
+export const FLEXIBLE_MATERIALS = ["TPU", "TPE", "TPC", "TPA"];
+
 /** Reference ids: recorded along with any accepted value from that record, never edited by hand. */
 export const ID_FIELDS: ProductFieldKey[] = ["ofdId", "spoolmandbId"];
 
 export const FIELD_LABEL: Record<string, string> = Object.fromEntries(DETAIL_FIELDS.map((f) => [f.key, f.label]));
 
 /** Material + line shortcuts for the common cases (the fields stay editable). */
-export const MATERIAL_PRESETS: { label: string; material: string; line: string }[] = [
+export const MATERIAL_PRESETS: { label: string; material: string; line: string; finish?: string }[] = [
   { label: "PLA", material: "PLA", line: "" },
   { label: "PLA+", material: "PLA", line: "PLA+" },
-  { label: "Silk PLA", material: "PLA", line: "Silk" },
-  { label: "Matte PLA", material: "PLA", line: "Matte" },
-  { label: "Wood PLA", material: "PLA", line: "Wood" },
+  { label: "Silk PLA", material: "PLA", line: "Silk", finish: "Silk" },
+  { label: "Matte PLA", material: "PLA", line: "Matte", finish: "Matte" },
+  { label: "Wood PLA", material: "PLA", line: "Wood", finish: "Wood Fill" },
   { label: "PETG", material: "PETG", line: "" },
   { label: "TPU", material: "TPU", line: "" },
   { label: "ABS", material: "ABS", line: "" },

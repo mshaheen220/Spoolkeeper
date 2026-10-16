@@ -1,4 +1,4 @@
-import type { Product, Source, Spool, SpoolDetail, Vendor } from "../types";
+import type { FieldSource, Product, Source, Spool, SpoolDetail, Vendor } from "../types";
 import { request } from "./client";
 
 export type SourceMap = Record<string, { source: Source; sourceRef?: string | null }>;
@@ -9,6 +9,9 @@ export const fetchSpools = (includeArchived = false) =>
 export const fetchSpool = (id: number) => request<SpoolDetail>(`/api/spools/${id}`);
 
 export const fetchVendors = () => request<{ vendors: Vendor[] }>("/api/vendors").then((b) => b.vendors);
+
+export const fetchProduct = (id: number) =>
+  request<{ product: Product; sources: Record<string, FieldSource>; spools: Spool[] }>(`/api/products/${id}`);
 
 export const fetchProducts = () => request<{ products: Product[] }>("/api/products").then((b) => b.products);
 

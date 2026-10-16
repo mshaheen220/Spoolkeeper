@@ -86,11 +86,11 @@ export function SpoolsPage() {
           return (
             <li key={s.id}>
               <Link to={`/spools/${s.id}`} className="flex items-center gap-3 bg-ink-900/40 px-3 py-3 hover:bg-ink-900">
-                <Swatch hex={p.colorHex} />
+                <Swatch hex={p.colorHex} hexes={p.colorHexes} direction={p.multiColorDirection} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{p.displayName}</p>
                   <p className="truncate text-xs text-ink-400">
-                    {[range(p.nozzleMin, p.nozzleMax, "°C"), p.diameterMm ? `${p.diameterMm} mm` : null, s.store]
+                    {[p.finish && p.finish !== "Standard" ? p.finish : null, range(p.nozzleMin, p.nozzleMax, "°C"), p.diameterMm ? `${p.diameterMm} mm` : null, s.store]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
