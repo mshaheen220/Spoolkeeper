@@ -160,7 +160,8 @@ export function CalibratePage() {
           <p className="text-sm text-ink-400">Spool #{spoolId} · follow the steps in order; each builds on the last.</p>
           <p className="text-xs text-ink-400">
             Calibrating on <span className="whitespace-pre">{data.calibratingOn.name}</span>
-            {data.calibratingOn.nozzleDiameter ? ` (${data.calibratingOn.nozzleDiameter} mm nozzle)` : ""} ·{" "}
+            {data.calibratingOn.nozzleDiameter ? ` (${data.calibratingOn.nozzleDiameter} mm nozzle)` : ""}
+            {data.plateType && ` · ${data.plateType.label}`} ·{" "}
             <Link to="/settings" className="underline">
               change
             </Link>

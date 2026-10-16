@@ -55,7 +55,7 @@ server/                 Express + TypeScript, better-sqlite3, zod
 data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 ```
 
-**Where it runs.** Locally on the Mac, in Docker, so it can reach OrcaSlicer's user folder. `~/Library/Application Support/OrcaSlicer/user/default` is mounted **read-only** at `/orca`; Phase 3 will make the mount writable for publishing. Set `ORCA_USER_DIR_HOST` if your folder lives elsewhere.
+**Where it runs.** Locally on the Mac, in Docker, so it can reach OrcaSlicer's user folder. `~/Library/Application Support/OrcaSlicer` is mounted **read-only** at `/orcaslicer`. Spoolkeeper reads `user/default` (presets) and `OrcaSlicer.conf` (which plate type each printer preset uses) from it. Phase 3 adds a writable mount for publishing. Set `ORCA_DIR_HOST` if your folder lives elsewhere.
 
 ### Data model
 
@@ -133,4 +133,4 @@ Shared with the other workshop apps (GripTab, chocolate-mold-factory, svg-stacke
 
 ## Configuration
 
-See `.env.example`: `PORT`, `DATA_DIR`, `ORCA_USER_DIR`, `ORCA_USER_DIR_HOST` (Docker), `FETCH_TIMEOUT_MS`, `CLIENT_ORIGIN`.
+See `.env.example`: `PORT`, `DATA_DIR`, `ORCA_USER_DIR`, `ORCA_CONF`, `ORCA_DIR_HOST` (Docker), `FETCH_TIMEOUT_MS`, `CLIENT_ORIGIN`.

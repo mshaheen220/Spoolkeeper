@@ -21,6 +21,7 @@ const ctx = (over: Partial<TestContext> = {}): TestContext => ({
   lastPass1Flow: null,
   linearAdvance: "unsupported",
   printerRetraction: { length: 1.2, speed: null, zHop: null, zHopType: "Slope Lift", wipe: null, wipeDistance: 0.8 },
+  plateType: { label: "Smooth High Temp Plate", side: "smooth", perPrinter: true },
   ...over,
 });
 const value = (test: string, params: object, obs: object, c = ctx()) =>
@@ -87,6 +88,39 @@ describe("calibration math", () => {
     expect(value("pa", { start: 0, end: 0.1, step: 0.002 }, { heightMm: 20.7 }, ctx({ linearAdvance: "supported" }))).toEqual({
       enable_pressure_advance: "1",
       pressure_advance: "0.04",
+    });
+  });
+});
+
+describe("bed temperature prefill", () => {
+  const cooling = getTest("cooling");
+
+  it("uses the maker's range: smooth at the middle, textured 5 °C warmer (capped at the max)", () => {
+    const c = ctx({ product: { ...walnut, bedMin: 50, bedMax: 60 } as Product });
+    expect(cooling.suggestObservation!(c, {})).toEqual({ bedSmooth: 55, bedTextured: 60 });
+    const notes = cooling.suggestionNotes!(c);
+    expect(notes.bedSmooth).toMatch(/maker's 50–60 °C range/);
+    expect(notes.bedSmooth).toMatch(/Smooth High Temp Plate/); // the side this printer's projects use
+    expect(notes.bedTextured).not.toMatch(/Smooth High Temp Plate/);
+  });
+
+  it("falls back to the base profile, and prefers values already saved", () => {
+    expect(cooling.suggestObservation!(ctx(), {})).toEqual({ bedSmooth: 60, bedTextured: 60 }); // Creality Generic PLA
+    expect(cooling.suggestObservation!(ctx({ tuned: { hot_plate_temp: "58" } }), {})).toMatchObject({ bedSmooth: 58 });
+  });
+
+  it("warns about PETG on smooth PEI", () => {
+    const notes = cooling.suggestionNotes!(ctx({ product: { ...walnut, material: "PETG" } as Product }));
+    expect(notes.bedSmooth).toMatch(/glue stick/);
+  });
+
+  it("confirming the prefilled values saves both plates", () => {
+    const c = ctx({ product: { ...walnut, bedMin: 50, bedMax: 60 } as Product });
+    expect(value("cooling", {}, cooling.suggestObservation!(c, {}), c)).toMatchObject({
+      hot_plate_temp: "55",
+      hot_plate_temp_initial_layer: "55",
+      textured_plate_temp: "60",
+      textured_plate_temp_initial_layer: "60",
     });
   });
 });

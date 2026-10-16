@@ -5,8 +5,9 @@ type Values = Record<string, string>;
 
 const toStrings = (o: Record<string, unknown>): Values => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v == null ? "" : String(v)]));
 
-function Field({ field, value, onChange }: { field: InputField; value: string; onChange: (v: string) => void }) {
+function Field({ field, value, onChange, note }: { field: InputField; value: string; onChange: (v: string) => void; note?: string }) {
   const id = useId();
+  const help = [note, field.help].filter(Boolean).join(" ");
   return (
     <div className={field.type === "text" ? "col-span-2" : undefined}>
       <label htmlFor={field.readOnly ? undefined : id} className="mb-1 block text-sm font-medium text-ink-200">
@@ -36,14 +37,14 @@ function Field({ field, value, onChange }: { field: InputField; value: string; o
             step={field.step ?? "any"}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            aria-describedby={field.help ? `${id}-help` : undefined}
+            aria-describedby={help ? `${id}-help` : undefined}
           />
           {field.unit && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-ink-500">{field.unit}</span>}
         </div>
       )}
-      {field.help && (
+      {help && (
         <p id={`${id}-help`} className="mt-1 text-xs leading-snug text-ink-400">
-          {field.help}
+          {help}
         </p>
       )}
     </div>
@@ -77,7 +78,11 @@ export function TestPanel({
 
   // Required observations that are still empty: no point asking the server yet.
   const missing = test.observation.filter((f) => !f.optional && !obs[f.key]);
-  const anyObs = test.observation.some((f) => obs[f.key] && !(f.key in test.suggestedObservation && obs[f.key] === String(test.suggestedObservation[f.key])));
+  // Usually a prefilled value is just a default around the real measurement, so wait for the user's input.
+  // When the prefill *is* the answer (bed temperatures), confirming it as-is is allowed.
+  const anyObs = test.prefillIsAnswer
+    ? test.observation.some((f) => obs[f.key])
+    : test.observation.some((f) => obs[f.key] && !(f.key in test.suggestedObservation && obs[f.key] === String(test.suggestedObservation[f.key])));
 
   useEffect(() => {
     if (missing.length > 0 || !anyObs) return;
@@ -156,7 +161,7 @@ export function TestPanel({
         <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">What you saw</p>
         <div className="grid grid-cols-2 gap-3">
           {test.observation.map((f) => (
-            <Field key={f.key} field={f} value={obs[f.key] ?? ""} onChange={(v) => setObs((o) => ({ ...o, [f.key]: v }))} />
+            <Field key={f.key} field={f} note={test.suggestionNotes[f.key]} value={obs[f.key] ?? ""} onChange={(v) => setObs((o) => ({ ...o, [f.key]: v }))} />
           ))}
         </div>
         <label className="block">

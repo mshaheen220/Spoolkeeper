@@ -1,4 +1,5 @@
 import type { Product } from "../../db/repo";
+import type { PlateType } from "../orca/appConfig";
 import { HttpError } from "../http";
 
 // The calibration wizard's steps. Every dialog default, block list and
@@ -50,6 +51,8 @@ export interface TestContext {
   linearAdvance: LinearAdvance;
   /** The printer preset's own retraction settings, for reference and defaults. */
   printerRetraction: PrinterRetraction;
+  /** Plate type OrcaSlicer last used for the calibration printer, if known. */
+  plateType: PlateType | null;
 }
 
 export interface PrinterRetraction {
@@ -75,6 +78,10 @@ export interface TestDef {
   observation: InputField[];
   suggestParams(ctx: TestContext): Record<string, string | number | boolean>;
   suggestObservation?(ctx: TestContext, params: Record<string, number | string | boolean>): Record<string, string | number | boolean>;
+  /** Where each prefilled observation came from, shown under its field. */
+  suggestionNotes?(ctx: TestContext): Record<string, string>;
+  /** Prefilled observations are a complete answer to confirm (not just defaults around a measurement). */
+  prefillIsAnswer?: boolean;
   compute(params: Record<string, unknown>, obs: Record<string, unknown>, ctx: TestContext): Computed;
 }
 
@@ -513,6 +520,10 @@ const cooling: TestDef = {
     { key: "firstLayerNozzle", label: "First-layer nozzle", type: "number", unit: "°C", step: 5, optional: true },
   ],
   suggestParams: () => ({}),
+  prefillIsAnswer: true,
+  // Bed temperatures are judgment, not a test - prefill them so it's a quick confirm rather than easy to skip.
+  suggestObservation: (ctx) => bedSuggestions(ctx).values,
+  suggestionNotes: (ctx) => bedSuggestions(ctx).notes,
   compute(_params, obs) {
     const values: ResultValue[] = [];
     const formula: string[] = [];
@@ -542,6 +553,43 @@ const cooling: TestDef = {
     return { values, formula: formula.length ? formula : ["Recorded as entered."], warnings: [] };
   },
 };
+
+/**
+ * Bed temperatures to prefill: what this spool already has, else the maker's
+ * range (smooth PEI at the middle, textured 5 °C warmer - textured PEI grips
+ * less, so it usually wants a little more), else the base profile's default.
+ */
+function bedSuggestions(ctx: TestContext): { values: Record<string, number>; notes: Record<string, string> } {
+  const p = ctx.product;
+  const base = BASE_DEFAULTS[p.material.toUpperCase()] ?? {};
+  const values: Record<string, number> = {};
+  const notes: Record<string, string> = {};
+  const round5 = (n: number) => Math.round(n / 5) * 5;
+  const plate = ctx.plateType;
+  const usedSide = plate?.side;
+  const usedNote = (side: "smooth" | "textured") =>
+    usedSide === side ? ` Your OrcaSlicer projects on this printer use ${plate!.label}, so this is the one that's printing.` : "";
+
+  const pick = (field: "bedSmooth" | "bedTextured", key: string, side: "smooth" | "textured") => {
+    const tuned = optNum(ctx.tuned[key]);
+    if (tuned != null) {
+      values[field] = tuned;
+      notes[field] = `Your saved value.${usedNote(side)}`;
+    } else if (p.bedMin != null && p.bedMax != null) {
+      const mid = round5((p.bedMin + p.bedMax) / 2);
+      values[field] = side === "smooth" ? mid : Math.min(p.bedMax, mid + 5);
+      notes[field] = `Suggested from the maker's ${p.bedMin}–${p.bedMax} °C range${side === "textured" ? " (textured grips less, so a little warmer)" : ""} - change it to what actually stuck.${usedNote(side)}`;
+    } else if (base[key]) {
+      values[field] = Number(base[key]);
+      notes[field] = `The base profile's default - change it to what actually stuck.${usedNote(side)}`;
+    }
+  };
+  pick("bedSmooth", "hot_plate_temp", "smooth");
+  pick("bedTextured", "textured_plate_temp", "textured");
+  if (p.material.toUpperCase() === "PETG")
+    notes.bedSmooth = `${notes.bedSmooth ?? ""} PETG can bond so hard to smooth PEI that it tears the sheet - use glue stick as a release layer, or the textured side.`.trim();
+  return { values, notes };
+}
 
 export const TESTS: TestDef[] = [temp, mvs, pa, flow1, flow2, flowYolo, retraction, cooling];
 

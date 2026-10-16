@@ -29,6 +29,10 @@ export interface TestInfo {
   observation: InputField[];
   suggestedParams: Record<string, string | number | boolean>;
   suggestedObservation: Record<string, string | number | boolean>;
+  /** Where each prefilled observation came from. */
+  suggestionNotes: Record<string, string>;
+  /** Prefilled observations are a complete answer to confirm as-is. */
+  prefillIsAnswer: boolean;
   skipped: boolean;
 }
 
@@ -64,6 +68,7 @@ export interface CalibrationState {
   product: Product;
   linearAdvance: LinearAdvance;
   calibratingOn: { name: string; nozzleDiameter: number | null };
+  plateType: { label: string; side: "smooth" | "textured" | "other"; perPrinter: boolean } | null;
   tests: TestInfo[];
   runs: CalibrationRun[];
   tuned: Record<string, TunedValue>;

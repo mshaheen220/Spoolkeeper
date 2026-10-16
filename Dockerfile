@@ -67,7 +67,8 @@ FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data \
-    ORCA_USER_DIR=/orca
+    ORCA_USER_DIR=/orcaslicer/user/default \
+    ORCA_CONF=/orcaslicer/OrcaSlicer.conf
 
 WORKDIR /app/server
 

@@ -45,6 +45,8 @@ calibrationRouter.get(
         observation: t.observation,
         suggestedParams: params,
         suggestedObservation: t.suggestObservation?.(ctx, params) ?? {},
+        suggestionNotes: t.suggestionNotes?.(ctx) ?? {},
+        prefillIsAnswer: !!t.prefillIsAnswer,
         skipped: t.id === "pa" && ctx.linearAdvance === "unsupported",
       };
     });
@@ -57,6 +59,7 @@ calibrationRouter.get(
       product: spool.product,
       linearAdvance: ctx.linearAdvance,
       calibratingOn: await calibrationPrinter(),
+      plateType: ctx.plateType,
       printerRetraction: ctx.printerRetraction,
       tests,
       runs: listRuns(spool.id),

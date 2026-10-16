@@ -4,6 +4,7 @@ import { config } from "../../config";
 import { getDb } from "../../db";
 import { getSetting, listSpoolsForProduct, type Spool } from "../../db/repo";
 import { DEFAULT_PRINTER_PROFILE } from "../orca/bases";
+import { readPlateType } from "../orca/appConfig";
 import { listUserPrinters } from "../orca/printers";
 import { orcaValue } from "../orca/userProfiles";
 import type { Computed, LinearAdvance, PrinterRetraction, ResultValue, TestContext, TestId } from "./tests";
@@ -184,5 +185,6 @@ export function contextFor(spool: Spool): TestContext {
     lastPass1Flow: pass1Flow != null ? Number(pass1Flow) : null,
     linearAdvance: linearAdvanceStatus(),
     printerRetraction: readPrinterRetraction(),
+    plateType: readPlateType(config.orcaConfPath, getSetting("printerProfile", DEFAULT_PRINTER_PROFILE)),
   };
 }

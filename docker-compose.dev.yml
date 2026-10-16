@@ -13,7 +13,8 @@ services:
     environment:
       - PORT=3000
       - DATA_DIR=/data
-      - ORCA_USER_DIR=/orca
+      - ORCA_USER_DIR=/orcaslicer/user/default
+      - ORCA_CONF=/orcaslicer/OrcaSlicer.conf
       - CLIENT_ORIGIN=http://localhost:5175
     volumes:
       - ./server/src:/app/server/src

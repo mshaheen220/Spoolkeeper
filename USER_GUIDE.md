@@ -82,7 +82,7 @@ On a spool's page, tap **📐 Calibrate this spool**. The wizard follows OrcaSli
    - **Pass 1 + Pass 2:** pick the smoothest block's modifier in Pass 1 (−20 … +20). Put the result into OrcaSlicer's filament flow ratio before printing Pass 2 (−9 … 0); the wizard reminds you.
    - **YOLO:** OrcaSlicer's single-print method.
 5. **Retraction.** Calibration › Retraction (0 → 2 mm in 0.1 mm steps). Measure the height where stringing stops, or type the length from the G-code's `Calib_Retraction_tower` comment. Speed, z-hop type and wipe come prefilled from your printer profile (Slope Lift, 0.8 mm wipe); change them if this filament needs something different.
-6. **Cooling, bed and first layer** (optional). Fan speeds and bed temperatures for smooth and textured PEI that worked on real prints.
+6. **Cooling, bed and first layer** (optional). Fan speeds and bed temperatures for smooth and textured PEI that worked on real prints. The bed temperatures come **prefilled**: this spool's saved values, else the maker's range (smooth PEI at the middle, textured 5 °C warmer), else the base profile's default. Each field says where its number came from. The wizard also says which side your OrcaSlicer projects on this printer use (it reads OrcaSlicer's plate setting: Smooth High Temp Plate means smooth PEI, Textured PEI Plate means textured). Adjust them to what actually stuck, or save them as they are.
 
 Each step shows **the math** as you type. It warns you when a result looks odd: outside the maker's range, far from your known-good Sunlu Walnut Wood (210 °C, 1.2 mm), or a flow ratio far from 1.0, which usually means the extruder needs checking.
 

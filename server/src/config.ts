@@ -14,6 +14,10 @@ export const config = {
   orcaUserDir:
     process.env.ORCA_USER_DIR ??
     path.join(process.env.HOME ?? "", "Library", "Application Support", "OrcaSlicer", "user", "default"),
+  // OrcaSlicer's app settings (JSON): which plate type each printer preset last used.
+  orcaConfPath:
+    process.env.ORCA_CONF ??
+    path.join(process.env.HOME ?? "", "Library", "Application Support", "OrcaSlicer", "OrcaSlicer.conf"),
   // Outbound enrichment fetches: be a polite, identifiable client.
   fetchTimeoutMs: Number(process.env.FETCH_TIMEOUT_MS ?? 15_000),
   userAgent: "Spoolkeeper (+https://github.com/mshaheen220/Spoolkeeper)",

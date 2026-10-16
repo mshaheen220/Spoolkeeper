@@ -22,14 +22,18 @@ services:
     environment:
       - PORT=3000
       - DATA_DIR=/data
-      - ORCA_USER_DIR=/orca
+      - ORCA_USER_DIR=/orcaslicer/user/default
+      - ORCA_CONF=/orcaslicer/OrcaSlicer.conf
     volumes:
       # SQLite inventory + enrichment cache. A host folder (not a named
       # volume) so it's easy to back up alongside the repo checkout.
       - ./data:/data
-      # OrcaSlicer's user presets. Read-only in Phase 1: Spoolkeeper only
-      # imports from here and never writes until the Phase 3 publish step.
-      - "${ORCA_USER_DIR_HOST:-${HOME}/Library/Application Support/OrcaSlicer/user/default}:/orca:ro"
+      # OrcaSlicer's settings folder, read-only: user presets (import,
+      # printer list) and OrcaSlicer.conf (which plate type each printer
+      # uses). The whole folder rather than just OrcaSlicer.conf, because
+      # OrcaSlicer replaces that file on save and a single-file bind mount
+      # would keep showing the old one. Nothing is written until Phase 3.
+      - "${ORCA_DIR_HOST:-${HOME}/Library/Application Support/OrcaSlicer}:/orcaslicer:ro"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
