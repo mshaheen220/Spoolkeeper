@@ -8,6 +8,13 @@ import { listUserPrinters } from "../lib/orca/printers";
 
 export const settingsRouter = Router();
 
+export interface LabelSettings {
+  widthMm: number;
+  heightMm: number;
+}
+/** Sized for the printed label holders that span each spool; adjust in Settings. */
+export const DEFAULT_LABEL: LabelSettings = { widthMm: 60, heightMm: 20 };
+
 export interface EstepsCheck {
   current: number;
   markMm: number;
@@ -25,6 +32,8 @@ function currentSettings() {
     // From M503/M900: "supported" only if M503 lists an M900 K line.
     linearAdvance: getSetting<"unknown" | "supported" | "unsupported">("linearAdvance", "unknown"),
     esteps: getSetting<EstepsCheck | null>("esteps", null),
+    label: getSetting<LabelSettings>("label", DEFAULT_LABEL),
+    publicBaseUrl: getSetting("publicBaseUrl", config.publicBaseUrl),
   };
 }
 
@@ -48,12 +57,22 @@ const settingsPatch = z.object({
   // Not trimmed: OrcaSlicer preset names can contain meaningful double spaces.
   printerProfile: z.string().min(1).max(200).optional(),
   linearAdvance: z.enum(["unknown", "supported", "unsupported"]).optional(),
+  label: z.object({ widthMm: z.coerce.number().min(20).max(200), heightMm: z.coerce.number().min(10).max(150) }).optional(),
+  publicBaseUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((u) => /^https?:\/\//.test(u), "must start with http:// or https://")
+    .transform((u) => u.replace(/\/+$/, ""))
+    .optional(),
 });
 
 settingsRouter.put("/settings", (req, res) => {
   const patch = settingsPatch.parse(req.body);
   if (patch.printerProfile !== undefined) setSetting("printerProfile", patch.printerProfile);
   if (patch.linearAdvance !== undefined) setSetting("linearAdvance", patch.linearAdvance);
+  if (patch.label !== undefined) setSetting("label", patch.label);
+  if (patch.publicBaseUrl !== undefined) setSetting("publicBaseUrl", patch.publicBaseUrl);
   res.json(currentSettings());
 });
 

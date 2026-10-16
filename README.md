@@ -10,7 +10,8 @@ How to use the app: see [USER_GUIDE.md](USER_GUIDE.md).
 |---|---|---|
 | 1 | Intake + enrichment, inventory, OrcaSlicer import, manual profile export | **Done** |
 | 2 | Calibration wizard (temp → max volumetric speed → PA → flow P1/P2 or YOLO → retraction → cooling/bed), per-spool history, tuned values in profiles | **Done** |
-| 3 | Direct, non-destructive publish into OrcaSlicer (diff, backups, hand-tune guard), spoolman2slicer cleanup, printable labels | Planned |
+| 3 | Printable spool labels with QR codes | **Done** |
+| 3 | Direct, non-destructive publish into OrcaSlicer (diff, backups, hand-tune guard), spoolman2slicer cleanup | Planned |
 
 ## Quick start
 
@@ -108,6 +109,7 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `POST /spools/:id/calibration/runs` | Save a run (validated, computed server-side) |
 | `PATCH /calibration/runs/:id { accepted }` | Stop or resume using a run; runs are never deleted |
 | `GET /settings`, `PUT /settings { printerProfile, linearAdvance }`, `POST /settings/esteps` | Settings, Linear Advance status, E-steps check |
+| `GET /labels?ids=1,2,3` | Label contents (brand, material, finishes, color, nozzle/bed - tuned or maker range - and QR URL), plus label size and QR base address from Settings |
 | `GET /orca/printers` | Printer presets in the mounted OrcaSlicer folder (exact `name` fields), for the Settings dropdown |
 
 ### OrcaSlicer preset format

@@ -250,9 +250,16 @@ export function SpoolsPage() {
 
       {all.length > 0 && (
         <>
-          <p className="text-xs text-ink-400" aria-live="polite">
-            {shown.length === all.length ? `${all.length} spools` : `${shown.length} of ${all.length} spools`}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-ink-400" aria-live="polite">
+              {shown.length === all.length ? `${all.length} spools` : `${shown.length} of ${all.length} spools`}
+            </p>
+            {shown.length > 0 && (
+              <Link to={`/labels?ids=${shown.map((s) => s.id).join(",")}`} className="text-xs text-accent-400 underline">
+                🏷 Print {shown.length === 1 ? "label" : `${shown.length} labels`}
+              </Link>
+            )}
+          </div>
           <div className="overflow-hidden rounded-lg border border-ink-800">
             <table className="w-full table-fixed text-sm">
               <caption className="sr-only">Spools, sortable by column</caption>

@@ -110,7 +110,24 @@ On the spool's page, **Tuned settings** compares each value with the maker's ran
 - **Linear Advance** is set to *Not available* (your `M900` test).
 - **E-steps check** (optional): mark the filament 120 mm above the extruder, extrude 100 mm, enter what's left, and Spoolkeeper tells you whether 93 is right.
 
-## 7. Get a profile into OrcaSlicer
+## 7. Print spool labels
+
+Tap **🏷 Print label** on a spool's page, or **🏷 Print N labels** above the list to print every spool the list is currently showing. Filter first, for example to just the new ones.
+
+Each label (60 × 20 mm by default, to fit the label holders) has:
+
+- **A QR code** that opens that spool's page in Spoolkeeper on your phone.
+- **The color name** in bold.
+- **Brand · material · finish.**
+- **Nozzle (N) and bed (B) temperatures.** A **✓** means the value came from calibrating that spool; otherwise it's the maker's range.
+- **The Spool #.**
+- **A color stripe** on the right edge (optional; it shows the gradient for multi-color filament).
+
+Choose **Label printer** (one label per page at exactly the label size) or **Letter/A4 paper** (labels tiled with cut lines). In the print dialog, set the scale to **100%** and turn off headers and footers.
+
+**Settings → Spool labels** sets the size and the address the QR codes open. The default is `http://Michaels-MacBook-Pro.local:8003`, the Mac's network name, which keeps working when its IP address changes. Reprint a label after calibrating so it shows the ✓ values.
+
+## 8. Get a profile into OrcaSlicer
 
 On a spool's page, under **OrcaSlicer profile**:
 
@@ -131,4 +148,3 @@ Calibrated values are badged **Tuned** and override the base profile. Until a va
 ## Coming next
 
 - **Publish straight into OrcaSlicer.** Shows a diff, backs up first, and never overwrites a value you hand-tuned without asking.
-- **Printable spool labels** with a QR code linking to the spool's page.

@@ -41,6 +41,8 @@ export interface Settings {
   orcaUserDir: string;
   linearAdvance: "unknown" | "supported" | "unsupported";
   esteps: EstepsCheck | null;
+  label: { widthMm: number; heightMm: number };
+  publicBaseUrl: string;
 }
 
 export interface OrcaPrinter {

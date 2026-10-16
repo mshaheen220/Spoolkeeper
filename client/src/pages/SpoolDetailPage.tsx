@@ -225,6 +225,9 @@ export function SpoolDetailPage() {
       )}
 
       <div className="flex flex-wrap gap-2">
+        <Link to={`/labels?ids=${spool.id}`} className="btn">
+          🏷 Print label
+        </Link>
         <button type="button" className="btn" onClick={toggleArchived}>
           {spool.archived ? "Unarchive" : "Archive (spool is empty)"}
         </button>

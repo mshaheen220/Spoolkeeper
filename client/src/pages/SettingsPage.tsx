@@ -53,6 +53,8 @@ export function SettingsPage() {
 
       {data && <PrinterSection settings={data} onChange={reload} />}
 
+      {data && <LabelSection settings={data} onChange={reload} />}
+
       <section className="card space-y-2" aria-labelledby="data-heading">
         <h2 id="data-heading" className="font-semibold">
           Filament data
@@ -243,5 +245,62 @@ function PrinterPicker({
       </select>
       {help}
     </div>
+  );
+}
+
+/** Label size (to fit the printed label holders) and the address QR codes open. */
+function LabelSection({ settings, onChange }: { settings: Settings; onChange: () => void }) {
+  const [w, setW] = useState(String(settings.label.widthMm));
+  const [h, setH] = useState(String(settings.label.heightMm));
+  const [url, setUrl] = useState(settings.publicBaseUrl);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const dirty = w !== String(settings.label.widthMm) || h !== String(settings.label.heightMm) || url !== settings.publicBaseUrl;
+  const save = async () => {
+    setError(null);
+    try {
+      await saveSettings({ label: { widthMm: Number(w), heightMm: Number(h) }, publicBaseUrl: url });
+      setSaved(true);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <section className="card space-y-3" aria-labelledby="labels-heading">
+      <h2 id="labels-heading" className="font-semibold">
+        Spool labels
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-sm text-ink-300">Width</span>
+          <div className="relative">
+            <input className="field pr-10" inputMode="decimal" value={w} onChange={(e) => (setW(e.target.value), setSaved(false))} />
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-ink-500">mm</span>
+          </div>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-ink-300">Height</span>
+          <div className="relative">
+            <input className="field pr-10" inputMode="decimal" value={h} onChange={(e) => (setH(e.target.value), setSaved(false))} />
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-ink-500">mm</span>
+          </div>
+        </label>
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-sm text-ink-300">Address the QR codes open</span>
+        <input className="field font-mono text-sm" value={url} onChange={(e) => (setUrl(e.target.value), setSaved(false))} />
+        <span className="mt-1 block text-xs text-ink-400">
+          Must work from your phone on the same Wi-Fi. The Mac's .local name keeps working when its IP changes; “localhost” only works on the Mac itself.
+        </span>
+      </label>
+      {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
+      <div className="flex items-center gap-3">
+        <button type="button" className="btn-primary" disabled={!dirty} onClick={save}>
+          Save
+        </button>
+        {saved && !dirty && <span role="status" className="text-sm text-emerald-400 day:text-emerald-700">Saved.</span>}
+      </div>
+    </section>
   );
 }
