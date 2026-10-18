@@ -31,6 +31,8 @@ export interface BuiltProfile {
   fileName: string;
   inherits: string;
   baseFallback: boolean;
+  /** OrcaSlicer version the profile was built for (null = unknown, 2.4 names used). */
+  orcaVersion: string | null;
   /** Printer presets the tuned values were measured on ("TheHammer  0.4 nozzle (0.4 mm)"); empty if untuned. */
   tunedOn: string[];
   values: ProfileValue[];
@@ -69,10 +71,12 @@ export function buildProfile(opts: {
   tuned?: Record<string, TunedValue>;
   tunedFromSpool?: number | null;
   linearAdvance?: LinearAdvance;
+  /** Installed OrcaSlicer version - picks base profile names (2.5 renamed Creality's generics). */
+  orcaVersion?: string | null;
   now?: Date;
 }): BuiltProfile {
   const { spool, product, productSources: ps, scope } = opts;
-  const base = baseFor(product.material);
+  const base = baseFor(product.material, opts.orcaVersion);
   const name = profileName(product, scope, spool.id);
   const values: ProfileValue[] = [];
   const src = (field: string) => ({ source: (ps[field]?.source ?? "manual") as Source, sourceRef: ps[field]?.sourceRef ?? null });
@@ -180,6 +184,7 @@ export function buildProfile(opts: {
     inherits: base.inherits,
     baseFallback: base.fallback,
     tunedOn,
+    orcaVersion: opts.orcaVersion ?? null,
     values,
     pending,
     tunedFromSpool: Object.keys(tuned).length ? (opts.tunedFromSpool ?? spool.id) : null,

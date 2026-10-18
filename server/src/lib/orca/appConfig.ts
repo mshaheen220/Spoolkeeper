@@ -36,3 +36,13 @@ export function readPlateType(confPath: string, printerName: string): PlateType 
     return null; // not mounted or unreadable - the wizard just won't say which side
   }
 }
+
+/** The installed OrcaSlicer's version, as it records it ("2.5.0-alpha"); null if unreadable. */
+export function readOrcaVersion(confPath: string): string | null {
+  try {
+    const conf = JSON.parse(fs.readFileSync(confPath, "utf8")) as { app?: { version?: string } };
+    return conf.app?.version ?? null;
+  } catch {
+    return null;
+  }
+}

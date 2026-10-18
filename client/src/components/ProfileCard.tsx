@@ -59,6 +59,7 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
             <p className="text-xs text-ink-400">
               Inherits <span className="font-mono">{data.profile.inherits}</span>
               {data.profile.baseFallback && " (no base for this material; using PLA's)"} · shows for every printer
+              {data.profile.orcaVersion && ` · built for OrcaSlicer ${data.profile.orcaVersion}`}
             </p>
             {data.profile.tunedOn.length > 0 && (
               <p className="text-xs text-ink-400">

@@ -2,7 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { getSources, getSpool, listSpoolsForProduct } from "../db/repo";
 import { calibratedSpoolForProduct, linearAdvanceStatus, tunedForSpool } from "../lib/calibration/service";
+import { config } from "../config";
 import { idParam, notFound } from "../lib/http";
+import { readOrcaVersion } from "../lib/orca/appConfig";
 import { buildProfile, profileJsonText, type ProfileScope } from "../lib/orca/profile";
 
 export const profileRouter = Router();
@@ -21,6 +23,7 @@ function build(spoolId: number, scope: ProfileScope) {
     tuned,
     tunedFromSpool,
     linearAdvance: linearAdvanceStatus(),
+    orcaVersion: readOrcaVersion(config.orcaConfPath),
     spool,
     product: spool.product,
     productSources: getSources("product", spool.product.id),
@@ -44,7 +47,7 @@ profileRouter.get("/spools/:id/profile", (req, res) => {
     spoolId,
     productId: getSpool(spoolId)!.product.id,
     scope: p.scope,
-    profile: { name: p.name, fileName: p.fileName, inherits: p.inherits, baseFallback: p.baseFallback, tunedOn: p.tunedOn },
+    profile: { name: p.name, fileName: p.fileName, inherits: p.inherits, baseFallback: p.baseFallback, tunedOn: p.tunedOn, orcaVersion: p.orcaVersion },
     tunedFromSpool: p.tunedFromSpool,
     values: p.values,
     pending: p.pending,

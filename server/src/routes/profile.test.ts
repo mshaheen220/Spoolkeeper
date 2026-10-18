@@ -92,4 +92,14 @@ describe("OrcaSlicer profile", () => {
     expect(res.body.profile.tunedOn).toEqual(["TheHammer  0.4 nozzle (0.4 mm nozzle)", "TheHammer 0.2 nozzle (0.2 mm nozzle)"]);
     expect(res.body.orca.json.filament_notes[0]).toContain("Tuned on TheHammer  0.4 nozzle (0.4 mm nozzle), TheHammer 0.2 nozzle (0.2 mm nozzle)");
   });
+
+  it("uses OrcaSlicer 2.5's renamed base profile when that's what's installed", async () => {
+    const { buildProfile } = await import("../lib/orca/profile");
+    const id = await addWalnut();
+    const spool = (await request(app).get(`/api/spools/${id}`)).body.spool;
+    const p = buildProfile({ spool, product: spool.product, productSources: {}, scope: "spool", orcaVersion: "2.5.0-alpha" });
+    expect(p.json.inherits).toBe("Generic PLA @Creality");
+    expect(p.info).toContain("base_id = OFDSrzZ8");
+    expect(p.orcaVersion).toBe("2.5.0-alpha");
+  });
 });

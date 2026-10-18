@@ -18,3 +18,15 @@ describe("listUserPrinters", () => {
     ]);
   });
 });
+
+describe("base profiles by OrcaSlicer version", async () => {
+  const { baseFor, parseOrcaVersion } = await import("./bases");
+  it("uses the renamed Creality generics from 2.5 on", () => {
+    expect(baseFor("PLA", "2.5.0-alpha")).toMatchObject({ inherits: "Generic PLA @Creality", baseId: "OFDSrzZ8" });
+    expect(baseFor("PETG", "2.6.1")).toMatchObject({ inherits: "Generic PETG @Creality" });
+    expect(baseFor("PLA", "2.4.2")).toMatchObject({ inherits: "Creality Generic PLA", baseId: "GFL99" });
+    expect(baseFor("PLA", null)).toMatchObject({ inherits: "Creality Generic PLA" }); // unknown: last verified stable
+    expect(baseFor("NYLON-X", "2.5.0")).toMatchObject({ inherits: "Generic PLA @Creality", fallback: true });
+    expect(parseOrcaVersion("2.5.0-alpha")).toEqual([2, 5]);
+  });
+});
