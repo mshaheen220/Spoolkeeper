@@ -11,7 +11,7 @@ How to use the app: see [USER_GUIDE.md](USER_GUIDE.md).
 | 1 | Intake + enrichment, inventory, OrcaSlicer import, manual profile export | **Done** |
 | 2 | Calibration wizard (temp → max volumetric speed → PA → flow P1/P2 or YOLO → retraction → cooling/bed), per-spool history, tuned values in profiles | **Done** |
 | 3 | Printable spool labels with QR codes | **Done** |
-| 3 | Direct, non-destructive publish into OrcaSlicer (diff, backups, hand-tune guard), spoolman2slicer cleanup | Planned |
+| 3 | Direct, non-destructive publish into OrcaSlicer (diff, backups, hand-tune guard), spoolman2slicer cleanup | **Done** |
 
 ## Quick start
 
@@ -56,7 +56,7 @@ server/                 Express + TypeScript, better-sqlite3, zod
 data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 ```
 
-**Where it runs.** Locally on the Mac, in Docker, so it can reach OrcaSlicer's user folder. `~/Library/Application Support/OrcaSlicer` is mounted **read-only** at `/orcaslicer`. Spoolkeeper reads `user/default` (presets) and `OrcaSlicer.conf` (which plate type each printer preset uses) from it. Phase 3 adds a writable mount for publishing. Set `ORCA_DIR_HOST` if your folder lives elsewhere.
+**Where it runs.** Locally on the Mac, in Docker, so it can reach OrcaSlicer's user folder. `~/Library/Application Support/OrcaSlicer` is mounted at `/orcaslicer`. Spoolkeeper reads `user/default` (presets) and `OrcaSlicer.conf` (version, and which plate type each printer preset uses) from it. It writes only to `user/default/filament/`: its own presets, and removal of spoolman2slicer's. Append `:ro` to the volume to make it read-only; publishing then reports why it can't write. Set `ORCA_DIR_HOST` if your folder lives elsewhere.
 
 ### Data model
 
@@ -104,6 +104,10 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `GET /import/orca/preview`, `POST /import/orca { rows }` | Read-only OrcaSlicer import |
 | `GET /spools/:id/profile[?scope=spool\|product]` | **Stable endpoint for other tools:** every value Spoolkeeper would write to OrcaSlicer, with source and reason, plus `pending` (not yet calibrated) and the raw preset JSON and `.info` |
 | `GET /spools/:id/profile/orca.json[?scope=…]` | The preset as a download |
+| `GET /publish[?scope=spool\|product]` | Every spool's (or filament's) preset compared with OrcaSlicer's folder: `state` (`new\|changes\|current\|blocked`) and key-level `changes`, plus whether the folder is writable |
+| `GET /publish/spools/:id[?scope=…]` | One preset's plan |
+| `POST /publish { items: [{ spoolId, scope, overwrite? }] }` | Write presets. Hand-tuned keys are kept unless listed in `overwrite`; replaced files go to `data/backups/publish-<stamp>/` |
+| `GET /publish/legacy`, `POST /publish/legacy/remove { files }` | spoolman2slicer presets (with whether each is replaced yet); back up and delete |
 | `GET /spools/:id/calibration` | Wizard state: tests with OrcaSlicer dialog values suggested for this filament, run history, tuned values, base-profile defaults, sibling spools' values |
 | `POST /spools/:id/calibration/preview` `{ test, params, observation }` | Compute a result and its formula without saving |
 | `POST /spools/:id/calibration/runs` | Save a run (validated, computed server-side) |
@@ -111,6 +115,14 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `GET /settings`, `PUT /settings { printerProfile, linearAdvance }`, `POST /settings/esteps` | Settings, Linear Advance status, E-steps check |
 | `GET /labels?ids=1,2,3` | Label contents (brand, material, finishes, color, nozzle/bed - tuned or maker range - and QR URL), plus label size and QR base address from Settings |
 | `GET /orca/printers` | Printer presets in the mounted OrcaSlicer folder (exact `name` fields), for the Settings dropdown |
+
+### Publishing safely (`server/src/lib/orca/publish.ts`)
+
+- **Ownership.** A preset is Spoolkeeper's when its `filament_notes` carries `spoolkeeper:spool=ID;product=ID` (or `product=ID`). Only those files are written. A same-named file without the tag blocks the publish, and the tag also lets a renamed product move its file.
+- **Merge, don't replace.** The new file starts from the current one, so keys Spoolkeeper doesn't set (anything added in OrcaSlicer) survive. Keys it wrote before but no longer sets are removed, unless they were edited since.
+- **Hand-tune guard.** `published_profiles.written` (migration 8) stores exactly what was written per key. A file value that differs from it was edited in OrcaSlicer; it's kept, keeping its old baseline so it stays flagged, unless the request lists it in `overwrite`.
+- **Backups and idempotency.** Replaced or removed files are copied to `data/backups/` first. Identical content isn't rewritten. Writes go to a temp file and are then renamed.
+- **No running check.** A container can't see host processes, and OrcaSlicer only reads presets at startup and only writes them when you save, so the UI just says to restart it.
 
 ### OrcaSlicer preset format
 

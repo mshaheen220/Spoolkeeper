@@ -6,6 +6,7 @@ import { inventoryRouter } from "./inventory";
 import { labelsRouter } from "./labels";
 import { orcaImportRouter } from "./orcaImport";
 import { profileRouter } from "./profile";
+import { publishRouter } from "./publish";
 import { settingsRouter } from "./settings";
 import { tipsRouter } from "./tips";
 
@@ -17,6 +18,7 @@ apiRouter.use(inventoryRouter);
 apiRouter.use(enrichRouter);
 apiRouter.use(orcaImportRouter);
 apiRouter.use(profileRouter);
+apiRouter.use(publishRouter);
 apiRouter.use(settingsRouter);
 apiRouter.use(calibrationRouter);
 apiRouter.use(labelsRouter);

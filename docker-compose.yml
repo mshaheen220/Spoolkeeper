@@ -28,12 +28,15 @@ services:
       # SQLite inventory + enrichment cache. A host folder (not a named
       # volume) so it's easy to back up alongside the repo checkout.
       - ./data:/data
-      # OrcaSlicer's settings folder, read-only: user presets (import,
-      # printer list) and OrcaSlicer.conf (which plate type each printer
-      # uses). The whole folder rather than just OrcaSlicer.conf, because
-      # OrcaSlicer replaces that file on save and a single-file bind mount
-      # would keep showing the old one. Nothing is written until Phase 3.
-      - "${ORCA_DIR_HOST:-${HOME}/Library/Application Support/OrcaSlicer}:/orcaslicer:ro"
+      # OrcaSlicer's settings folder. Read: user presets (import, printer
+      # list) and OrcaSlicer.conf (version, plate type per printer). Written:
+      # only user/default/filament/ - Spoolkeeper's own presets (publish) and
+      # spoolman2slicer cleanup, always backed up to ./data/backups first.
+      # The whole folder rather than single files, because OrcaSlicer
+      # replaces OrcaSlicer.conf on save and a single-file bind mount would
+      # keep showing the old one. Append :ro to make Spoolkeeper read-only
+      # (publishing then explains why it can't write).
+      - "${ORCA_DIR_HOST:-${HOME}/Library/Application Support/OrcaSlicer}:/orcaslicer"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

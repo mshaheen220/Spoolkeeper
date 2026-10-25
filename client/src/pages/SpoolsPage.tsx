@@ -151,6 +151,9 @@ export function SpoolsPage() {
           <Link to="/import" className="btn" title="Import from OrcaSlicer">
             <span aria-hidden>⇣</span> Import
           </Link>
+          <Link to="/publish" className="btn" title="Publish presets to OrcaSlicer">
+            <span aria-hidden>⇡</span> Publish
+          </Link>
           <Link to="/spools/new" className="btn-primary">
             <span aria-hidden>＋</span> Add spool
           </Link>

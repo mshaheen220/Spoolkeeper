@@ -5,9 +5,6 @@ interface Props {
   onClose: () => void;
 }
 
-/** Live camera scanning needs getUserMedia, which browsers only allow on https:// or localhost. */
-export const canUseLiveCamera = () => typeof window !== "undefined" && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
-
 /**
  * Live barcode scanner: streams the camera (the rear one on phones) into a
  * <video> and stops at the first barcode zxing reads.

@@ -2,12 +2,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { lookupGtin, type GtinMatch } from "../api/enrich";
 import { createSpools, findProductMatch, type SourceMap } from "../api/inventory";
-import { CameraScanner, canUseLiveCamera } from "../components/CameraScanner";
+import { CameraScanner } from "../components/CameraScanner";
 import { FormField } from "../components/FormField";
 import { AppearanceFields, DetailsGrid, IdentityFields, LookupControls, SizeFields, Suggestions } from "../components/product/ProductSections";
 import { Swatch } from "../components/Swatch";
 import { useProductForm, type Provenance, type Values } from "../hooks/useProductForm";
-import { decodeBarcode } from "../lib/barcode";
+import { canUseLiveCamera, decodeBarcode } from "../lib/barcode";
 import type { Product } from "../types";
 
 const today = () => {

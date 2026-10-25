@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { strToU8, zipSync } from "fflate";
+import { Link } from "react-router";
 import { fetchSpoolProfile, profileJsonUrl, type ProfileScope } from "../api/profile";
+import { fetchPublishPlan, publish, type PublishResult } from "../api/publish";
 import { useAsync } from "../hooks/useAsync";
 import { downloadBlob } from "../lib/download";
+import { PublishChanges, StateChip } from "./PublishChanges";
 import { SourceBadge } from "./SourceBadge";
 
 const SCOPES: { value: ProfileScope; label: string; help: string }[] = [
@@ -106,20 +109,103 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
             </ul>
           </div>}
 
-          <div className="flex flex-wrap gap-2">
-            <a className="btn-primary" href={profileJsonUrl(spoolId, scope)} download>
-              Download .json
-            </a>
-            <button type="button" className="btn" onClick={downloadZip}>
-              Download .json + .info (zip)
-            </button>
-          </div>
-          <p className="text-xs text-ink-400">
-            Import the .json in OrcaSlicer with <span className="font-medium">File → Import → Import Configs…</span>, or copy both files from the zip into{" "}
-            <span className="font-mono break-all">~/Library/Application Support/OrcaSlicer/user/default/filament/</span> and restart OrcaSlicer.
-          </p>
+          <PublishPanel spoolId={spoolId} scope={scope} />
+
+          <details>
+            <summary className="cursor-pointer text-sm text-ink-300">Download instead</summary>
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <a className="btn" href={profileJsonUrl(spoolId, scope)} download>
+                  Download .json
+                </a>
+                <button type="button" className="btn" onClick={downloadZip}>
+                  Download .json + .info (zip)
+                </button>
+              </div>
+              <p className="text-xs text-ink-400">
+                Import the .json in OrcaSlicer with <span className="font-medium">File → Import → Import Configs…</span>, or copy both files from the zip into{" "}
+                <span className="font-mono break-all">~/Library/Application Support/OrcaSlicer/user/default/filament/</span> and restart OrcaSlicer.
+              </p>
+            </div>
+          </details>
         </>
       )}
     </section>
+  );
+}
+
+/** Publish this one preset straight into OrcaSlicer, after showing what changes. */
+function PublishPanel({ spoolId, scope }: { spoolId: number; scope: ProfileScope }) {
+  const { data, error, reload } = useAsync(() => fetchPublishPlan(spoolId, scope), [spoolId, scope]);
+  const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<{ r: PublishResult; note: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  if (error) return <p className="text-xs text-rose-400">{error}</p>;
+  if (!data) return null;
+  const { plan, writable } = data;
+  // Only kept OrcaSlicer edits differ: publishing would change nothing until one is ticked.
+  const onlyKept = plan.state === "changes" && plan.existingFile === plan.fileName && plan.changes.every((c) => c.handTuned && !overwrite.has(c.key));
+
+  const run = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const res = await publish([{ spoolId, scope, overwrite: [...overwrite] }]);
+      setResult({ r: res.results[0], note: res.restartNote });
+      setOverwrite(new Set());
+      reload();
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-md border border-ink-700 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">In OrcaSlicer</span>
+        <StateChip state={plan.state} />
+      </div>
+      {plan.state === "blocked" && <p className="text-xs text-rose-400">{plan.blockedReason}</p>}
+      {plan.state === "changes" && (
+        <PublishChanges
+          changes={plan.changes}
+          overwrite={overwrite}
+          onToggle={(k) =>
+            setOverwrite((s) => {
+              const next = new Set(s);
+              if (next.has(k)) next.delete(k);
+              else next.add(k);
+              return next;
+            })
+          }
+        />
+      )}
+      {!writable.ok && <p className="text-xs text-rose-400">{writable.reason}</p>}
+      {(plan.state === "new" || plan.state === "changes") && (
+        <button type="button" className="btn-primary w-full" disabled={busy || !writable.ok || onlyKept} onClick={() => void run()}>
+          {busy ? "Publishing…" : plan.state === "new" ? "Add to OrcaSlicer" : onlyKept ? "Nothing to update - tick a value to overwrite it" : "Update in OrcaSlicer"}
+        </button>
+      )}
+      {failed && (
+        <p role="alert" className="text-xs text-rose-400">
+          {failed}
+        </p>
+      )}
+      {result && (
+        <p role="status" className="text-xs text-emerald-300 day:text-emerald-800">
+          {result.r.action === "blocked" ? result.r.error : `Done (${result.r.action}). ${result.note}`}
+          {result.r.kept.length > 0 && ` Kept your OrcaSlicer values for ${result.r.kept.join(", ")}.`}
+        </p>
+      )}
+      <p className="text-xs text-ink-400">
+        <Link to="/publish" className="underline">
+          Publish all spools
+        </Link>
+      </p>
+    </div>
   );
 }

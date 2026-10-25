@@ -127,14 +127,29 @@ Choose **Label printer** (one label per page at exactly the label size) or **Let
 
 **Settings → Spool labels** sets the size and the address the QR codes open. The default is `http://Michaels-MacBook-Pro.local:8003`, the Mac's network name, which keeps working when its IP address changes. Reprint a label after calibrating so it shows the ✓ values.
 
-## 8. Get a profile into OrcaSlicer
+## 8. Get profiles into OrcaSlicer
 
-On a spool's page, under **OrcaSlicer profile**:
+Spoolkeeper writes its presets straight into OrcaSlicer's filament folder. Nothing happens on its own: you publish when you've added a spool or calibrated one.
 
-1. Choose **This spool** (a preset named like *Sunlu PLA Wood Walnut (Spool #13)*) or **All spools of this filament** (one shared preset).
-2. Open **values written** to see exactly what goes in and why.
-3. Tap **Download .json**, then in OrcaSlicer use **File → Import → Import Configs…**.
-   - Or download the **zip** and copy both files into `~/Library/Application Support/OrcaSlicer/user/default/filament/`, then restart OrcaSlicer.
+**All spools at once.** Tap **⇡ Publish** on the spool list.
+
+1. Choose **One per spool** (presets named like *Sunlu PLA Wood Walnut (Spool #13)*) or **One per filament** (spools of the same filament share a preset).
+2. Each preset shows where it stands: **Not in OrcaSlicer**, **Changes**, **Up to date** or **Blocked**. Open **Show changes** to see each value, old → new.
+3. New and changed presets come ticked. Tap **Publish N presets**.
+4. **Quit and reopen OrcaSlicer.** It only reads presets when it starts.
+
+**One spool.** On its page, under **OrcaSlicer profile → In OrcaSlicer**, tap **Add to OrcaSlicer** or **Update in OrcaSlicer**.
+
+What keeps your settings safe:
+
+- **Values you change in OrcaSlicer are kept.** Spoolkeeper remembers what it wrote. If a value in OrcaSlicer is different now, it's flagged *Changed in OrcaSlicer* and left alone unless you tick it to overwrite. Settings Spoolkeeper doesn't manage, like retraction you set in OrcaSlicer, are never touched.
+- **It only touches its own presets.** If OrcaSlicer already has a preset with the same name that Spoolkeeper didn't make, that one is **Blocked** instead of overwritten.
+- **Backups.** Every preset that's replaced is copied to `data/backups/publish-<date>/` first.
+- Renaming a filament in Spoolkeeper renames its preset instead of leaving a duplicate.
+
+**Old spoolman2slicer presets.** At the bottom of the Publish page is a list of the presets spoolman2slicer generated (*Sunlu - Black*, …). Once a filament's Spoolkeeper preset is published, its old one shows **replaced ✓** and comes ticked. **Back up and remove** copies them to `data/backups/spoolman2slicer-<date>/`, then deletes them. Presets you made or saved yourself in OrcaSlicer aren't on this list, so remove those in OrcaSlicer if you no longer want them.
+
+**Download instead.** Under **Download instead** on a spool's page you can still get the `.json` and import it with OrcaSlicer's **File → Import → Import Configs…**.
 
 The preset inherits the matching Creality base profile and **shows up for every printer**: filament is shelf stock, so it's available whether you pick TheHammer 0.4, the 0.2 preset or a future second printer. The notes say which printer and nozzle the tuned values were measured on. That matters most for max volumetric speed, which is much lower on a 0.2 mm nozzle; recalibrate on the 0.2 if you print this filament there often. Its color is the filament's color, or the ★ main color for a multi-color filament. All the colors, the finish and the Shore hardness are written into the preset's notes.
 
@@ -145,6 +160,3 @@ Calibrated values are badged **Tuned** and override the base profile. Until a va
 - **Printer you calibrate on.** Pick it from your OrcaSlicer printer presets (*TheHammer 0.4 nozzle* or *TheHammer 0.2 nozzle*). Every calibration result records it, along with the nozzle size, and profiles mention it in their notes. It doesn't limit where profiles show up; they show for every printer. Changing it saves immediately.
 - **Refresh cached data.** Fetches fresh copies of the filament databases on the next lookup.
 
-## Coming next
-
-- **Publish straight into OrcaSlicer.** Shows a diff, backs up first, and never overwrites a value you hand-tuned without asking.

@@ -4,6 +4,7 @@ import { CalibratePage } from "./pages/CalibratePage";
 import { EditProductPage } from "./pages/EditProductPage";
 import { ImportPage } from "./pages/ImportPage";
 import { LabelsPage } from "./pages/LabelsPage";
+import { PublishPage } from "./pages/PublishPage";
 import { IntakePage } from "./pages/IntakePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SpoolDetailPage } from "./pages/SpoolDetailPage";
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/products/:id/edit" element={<EditProductPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/labels" element={<LabelsPage />} />
+          <Route path="/publish" element={<PublishPage />} />
           <Route path="/spools/:id" element={<SpoolDetailPage />} />
           <Route path="/spools/:id/calibrate" element={<CalibratePage />} />
           <Route path="*" element={<NotFound />} />

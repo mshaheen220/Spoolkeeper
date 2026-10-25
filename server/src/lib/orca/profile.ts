@@ -49,6 +49,14 @@ export function profileName(product: Product, scope: ProfileScope, spoolId: numb
   return scope === "spool" ? `${base} (Spool #${spoolId})` : base;
 }
 
+/**
+ * Who a preset belongs to, as written into its filament_notes tag
+ * ("spoolkeeper:spool=13;product=7"). Publishing finds its own files by
+ * this, so a renamed product still updates the same preset.
+ */
+export const ownerTag = (scope: ProfileScope, spoolId: number, productId: number) =>
+  `${scope === "spool" ? `spool=${spoolId};` : ""}product=${productId}`;
+
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
 /** The values calibration supplies; until each is tuned, the base profile's value applies. */
@@ -138,8 +146,8 @@ export function buildProfile(opts: {
   const pending = PENDING_CALIBRATION.filter((p) => !tuned[p.key]).filter((p) => !(p.key === "pressure_advance" && opts.linearAdvance === "unsupported"));
 
   // Structural keys: which printer it attaches to, and an ownership tag
-  // that Phase 3's publish step uses to recognize its own files.
-  const tag = `spoolkeeper:${scope === "spool" ? `spool=${spool.id};` : ""}product=${product.id}`;
+  // that publishing uses to recognize its own files.
+  const tag = `spoolkeeper:${ownerTag(scope, spool.id, product.id)}`;
   const json: Record<string, unknown> = {
     // Empty list + empty condition = compatible with every printer (Preset.cpp is_compatible_with_printer, OrcaSlicer 2.4.2).
     compatible_printers: [],

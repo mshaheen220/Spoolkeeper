@@ -164,4 +164,19 @@ export const MIGRATIONS: string[] = [
     WHERE entity = 'product' AND field = 'finish' AND value IS NOT NULL AND value != 'null';
   ALTER TABLE products DROP COLUMN finish;
   `,
+
+  /* 8: presets written straight into OrcaSlicer - what was written is kept so later edits made in OrcaSlicer can be spotted */ `
+  CREATE TABLE published_profiles (
+    id            INTEGER PRIMARY KEY,
+    owner         TEXT NOT NULL UNIQUE,      -- filament_notes tag: "spool=13;product=7" or "product=7"
+    scope         TEXT NOT NULL,             -- spool | product
+    spool_id      INTEGER,                   -- null for a per-product preset
+    product_id    INTEGER NOT NULL,
+    file_name     TEXT NOT NULL,             -- "Sunlu PLA Wood Walnut (Spool #13).json"
+    written       TEXT NOT NULL,             -- JSON {key: value} of the keys Spoolkeeper set, as written
+    content_hash  TEXT NOT NULL,             -- sha256 of the whole file as written
+    backup_dir    TEXT,                      -- where the file it replaced was copied, if any
+    published_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+  `,
 ];

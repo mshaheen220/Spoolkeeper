@@ -1,38 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getSources, getSpool, listSpoolsForProduct } from "../db/repo";
-import { calibratedSpoolForProduct, linearAdvanceStatus, tunedForSpool } from "../lib/calibration/service";
-import { config } from "../config";
-import { idParam, notFound } from "../lib/http";
-import { readOrcaVersion } from "../lib/orca/appConfig";
-import { buildProfile, profileJsonText, type ProfileScope } from "../lib/orca/profile";
+import { getSpool } from "../db/repo";
+import { idParam } from "../lib/http";
+import { profileJsonText } from "../lib/orca/profile";
+import { buildForSpool } from "../lib/orca/spoolProfile";
 
 export const profileRouter = Router();
 
 const scopeQuery = z.object({ scope: z.enum(["spool", "product"]).default("spool") });
 
-function build(spoolId: number, scope: ProfileScope) {
-  const spool = getSpool(spoolId);
-  if (!spool) throw notFound("Spool");
-  // Per spool: this spool's calibration. Per product: this spool's if it has
-  // any, otherwise the most recently calibrated spool of the same filament.
-  const own = tunedForSpool(spool.id);
-  const tunedFromSpool = Object.keys(own).length || scope === "spool" ? spool.id : calibratedSpoolForProduct(spool.product.id, spool.id);
-  const tuned = tunedFromSpool == null ? {} : tunedFromSpool === spool.id ? own : tunedForSpool(tunedFromSpool);
-  return buildProfile({
-    tuned,
-    tunedFromSpool,
-    linearAdvance: linearAdvanceStatus(),
-    orcaVersion: readOrcaVersion(config.orcaConfPath),
-    spool,
-    product: spool.product,
-    productSources: getSources("product", spool.product.id),
-    scope,
-    productSpoolPrices: listSpoolsForProduct(spool.product.id)
-      .map((s) => s.price)
-      .filter((p): p is number => p != null),
-  });
-}
+const build = buildForSpool;
 
 /**
  * Stable, tool-friendly view of a spool's settings: every value Spoolkeeper

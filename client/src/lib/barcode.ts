@@ -14,6 +14,9 @@ declare global {
   }
 }
 
+/** Live camera scanning needs getUserMedia, which browsers only allow on https:// or localhost. */
+export const canUseLiveCamera = () => typeof window !== "undefined" && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
+
 const RETAIL_FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
 
 export async function decodeBarcode(file: Blob): Promise<string | null> {
