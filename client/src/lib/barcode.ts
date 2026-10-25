@@ -1,6 +1,6 @@
-// Decode a barcode from a photo. A photo (<input capture>) rather than a
-// live camera stream, because getUserMedia needs HTTPS and the app is
-// reached over plain http:// on the LAN.
+// Decode a barcode from a photo - the fallback when the live camera
+// (components/CameraScanner) isn't allowed: getUserMedia needs https://
+// or localhost, and phones reach the app over plain http:// on the LAN.
 
 interface DetectedBarcode {
   rawValue: string;

@@ -46,7 +46,7 @@ client/                 React 19 + TypeScript + Tailwind 4 (Vite), react-router
   src/pages/            SpoolsPage, SpoolDetailPage, IntakePage, EditProductPage, ImportPage, SettingsPage
   src/hooks/            useProductForm (values + provenance + lookup, shared by intake and edit)
   src/components/       Header, TipsPanel, ThemeSwitcher, FormField, SourceBadge, Swatch, ProfileCard, product/ (ColorEditor, sections), intake/
-  src/lib/              suggestions (merging), productFields (labels + "why it matters"), barcode
+  src/lib/              suggestions (merging), productFields (labels + "why it matters"), barcode (photo decode; live scanning is components/CameraScanner, used only in secure contexts)
 server/                 Express + TypeScript, better-sqlite3, zod
   src/db/               migrations (PRAGMA user_version), repo (all SQL)
   src/lib/enrich/       ofd, spoolmandb, spoolz, productPage, fetch (cache), text (matching)

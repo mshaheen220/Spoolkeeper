@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { lookupGtin, type GtinMatch } from "../api/enrich";
 import { createSpools, findProductMatch, type SourceMap } from "../api/inventory";
+import { CameraScanner, canUseLiveCamera } from "../components/CameraScanner";
 import { FormField } from "../components/FormField";
 import { AppearanceFields, DetailsGrid, IdentityFields, LookupControls, SizeFields, Suggestions } from "../components/product/ProductSections";
 import { Swatch } from "../components/Swatch";
@@ -27,6 +28,8 @@ export function IntakePage() {
   const [gtinInput, setGtinInput] = useState("");
   const [gtinMatches, setGtinMatches] = useState<GtinMatch[] | null>(null);
   const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const liveCamera = canUseLiveCamera();
 
   const [match, setMatch] = useState<Product | null>(null);
   const [useExisting, setUseExisting] = useState(false);
@@ -144,29 +147,58 @@ export function IntakePage() {
         </h2>
         <div className="space-y-2 rounded-md border border-dashed border-ink-700 p-3">
           <div className="flex flex-wrap items-end gap-2">
-            <label className="btn-primary cursor-pointer">
-              <span aria-hidden>📷</span> Scan barcode
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                onChange={(e) => {
-                  void scanPhoto(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+            {liveCamera ? (
+              <button type="button" className="btn-primary" aria-expanded={cameraOpen} onClick={() => setCameraOpen((o) => !o)}>
+                <span aria-hidden>📷</span> Scan barcode
+              </button>
+            ) : (
+              // Without https the browser won't stream the camera, so take a photo instead
+              // (opens the camera on phones, a file picker on computers).
+              <label className="btn-primary cursor-pointer">
+                <span aria-hidden>📷</span> Photo of barcode
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(e) => {
+                    void scanPhoto(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
             <div className="flex min-w-0 flex-1 basis-40 gap-2">
               <label className="min-w-0 flex-1">
                 <span className="sr-only">Barcode number</span>
-                <input className="field" inputMode="numeric" placeholder="or type the barcode" value={gtinInput} onChange={(e) => setGtinInput(e.target.value)} />
+                <input
+                  className="field"
+                  inputMode="numeric"
+                  placeholder="or type the barcode"
+                  value={gtinInput}
+                  onChange={(e) => setGtinInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    // This box sits inside the spool form - Enter looks up the barcode, it doesn't save.
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    if (gtinInput.replace(/\D/g, "").length >= 8) void findGtin(gtinInput);
+                  }}
+                />
               </label>
               <button type="button" className="btn" disabled={gtinInput.replace(/\D/g, "").length < 8} onClick={() => void findGtin(gtinInput)}>
                 Find
               </button>
             </div>
           </div>
+          {cameraOpen && (
+            <CameraScanner
+              onCode={(code) => {
+                setCameraOpen(false);
+                void findGtin(code);
+              }}
+              onClose={() => setCameraOpen(false)}
+            />
+          )}
           {scanStatus && (
             <p role="status" className="text-xs text-ink-300">
               {scanStatus}
