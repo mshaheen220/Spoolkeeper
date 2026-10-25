@@ -64,6 +64,8 @@ const publishBody = z.object({
         scope: scopeSchema,
         /** Hand-tuned keys to overwrite anyway; all others are kept as OrcaSlicer has them. */
         overwrite: z.array(z.string()).optional(),
+        /** Replace a same-named preset you made yourself (backed up first). */
+        replace: z.boolean().optional(),
       }),
     )
     .min(1)
@@ -86,7 +88,7 @@ publishRouter.post("/publish", (req, res) => {
       results.push({ owner: "", name: `Spool #${item.spoolId}`, fileName: "", action: "blocked", kept: [], backupDir: null, error: "Spool not found" });
       continue;
     }
-    results.push(applyPublish(buildForSpool(spool.id, item.scope), { spoolId: spool.id, productId: spool.product.id }, { overwrite: item.overwrite, backupDir }));
+    results.push(applyPublish(buildForSpool(spool.id, item.scope), { spoolId: spool.id, productId: spool.product.id }, { overwrite: item.overwrite, replace: item.replace, backupDir }));
   }
   res.json({ results, restartNote: RESTART_NOTE });
 });

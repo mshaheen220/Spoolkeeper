@@ -133,7 +133,7 @@ Spoolkeeper writes its presets straight into OrcaSlicer's filament folder. Nothi
 
 **All spools at once.** Tap **⇡ Publish** on the spool list.
 
-1. Choose **One per spool** (presets named like *Sunlu PLA Wood Walnut (Spool #13)*) or **One per filament** (spools of the same filament share a preset).
+1. Choose **One per spool** or **One per filament** (spools of the same filament share a preset). Presets are named like the rest of OrcaSlicer's list, brand - color: *Sunlu - Walnut*. Something extra is added only to keep two apart: *Sunlu - Black PETG* next to the PLA *Sunlu - Black*, *Make Market - Glitter White* next to *Marble White*, and *(Spool #13)* when you publish one per spool and have several spools of that filament.
 2. Each preset shows where it stands: **Not in OrcaSlicer**, **Changes**, **Up to date** or **Blocked**. Open **Show changes** to see each value, old → new.
 3. New and changed presets come ticked. Tap **Publish N presets**.
 4. **Quit and reopen OrcaSlicer.** It only reads presets when it starts.
@@ -146,6 +146,7 @@ What keeps your settings safe:
 - **It only touches its own presets.** If OrcaSlicer already has a preset with the same name that Spoolkeeper didn't make, that one is **Blocked** instead of overwritten.
 - **Backups.** Every preset that's replaced is copied to `data/backups/publish-<date>/` first.
 - Renaming a filament in Spoolkeeper renames its preset instead of leaving a duplicate.
+- **Same name as an old preset.** If spoolman2slicer made it, Spoolkeeper's preset takes its place (backed up first). If you made or saved it yourself, it's **Blocked** because it may hold your tuning. Tick **Replace it** to swap it out (backed up first), or rename yours in OrcaSlicer to keep both.
 
 **Old spoolman2slicer presets.** At the bottom of the Publish page is a list of the presets spoolman2slicer generated (*Sunlu - Black*, …). Once a filament's Spoolkeeper preset is published, its old one shows **replaced ✓** and comes ticked. **Back up and remove** copies them to `data/backups/spoolman2slicer-<date>/`, then deletes them. Presets you made or saved yourself in OrcaSlicer aren't on this list, so remove those in OrcaSlicer if you no longer want them.
 

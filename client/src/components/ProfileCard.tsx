@@ -2,14 +2,14 @@ import { useState } from "react";
 import { strToU8, zipSync } from "fflate";
 import { Link } from "react-router";
 import { fetchSpoolProfile, profileJsonUrl, type ProfileScope } from "../api/profile";
-import { fetchPublishPlan, publish, type PublishResult } from "../api/publish";
+import { fetchPublishPlan, publish, replacesNote, type PublishResult } from "../api/publish";
 import { useAsync } from "../hooks/useAsync";
 import { downloadBlob } from "../lib/download";
 import { PublishChanges, StateChip } from "./PublishChanges";
 import { SourceBadge } from "./SourceBadge";
 
 const SCOPES: { value: ProfileScope; label: string; help: string }[] = [
-  { value: "spool", label: "This spool", help: "Its own preset, named with the Spool #ID. Use when this spool tunes differently." },
+  { value: "spool", label: "This spool", help: "Its own preset. Use when this spool tunes differently; adds the Spool #ID only if you have several of this filament." },
   { value: "product", label: "All spools of this filament", help: "One shared preset for the product. Keeps OrcaSlicer's list short." },
 ];
 
@@ -138,6 +138,7 @@ export function ProfileCard({ spoolId }: { spoolId: number }) {
 function PublishPanel({ spoolId, scope }: { spoolId: number; scope: ProfileScope }) {
   const { data, error, reload } = useAsync(() => fetchPublishPlan(spoolId, scope), [spoolId, scope]);
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
+  const [replace, setReplace] = useState(false);
   const [result, setResult] = useState<{ r: PublishResult; note: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -152,9 +153,10 @@ function PublishPanel({ spoolId, scope }: { spoolId: number; scope: ProfileScope
     setBusy(true);
     setFailed(null);
     try {
-      const res = await publish([{ spoolId, scope, overwrite: [...overwrite] }]);
+      const res = await publish([{ spoolId, scope, overwrite: [...overwrite], replace }]);
       setResult({ r: res.results[0], note: res.restartNote });
       setOverwrite(new Set());
+      setReplace(false);
       reload();
     } catch (e) {
       setFailed(e instanceof Error ? e.message : String(e));
@@ -170,6 +172,13 @@ function PublishPanel({ spoolId, scope }: { spoolId: number; scope: ProfileScope
         <StateChip state={plan.state} />
       </div>
       {plan.state === "blocked" && <p className="text-xs text-rose-400">{plan.blockedReason}</p>}
+      {plan.state === "blocked" && plan.replaceable && (
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+          Replace it (backed up first)
+        </label>
+      )}
+      {replacesNote(plan) && <p className="text-xs text-ink-400">{replacesNote(plan)}</p>}
       {plan.state === "changes" && (
         <PublishChanges
           changes={plan.changes}
@@ -185,9 +194,9 @@ function PublishPanel({ spoolId, scope }: { spoolId: number; scope: ProfileScope
         />
       )}
       {!writable.ok && <p className="text-xs text-rose-400">{writable.reason}</p>}
-      {(plan.state === "new" || plan.state === "changes") && (
+      {(plan.state === "new" || plan.state === "changes" || (plan.state === "blocked" && replace)) && (
         <button type="button" className="btn-primary w-full" disabled={busy || !writable.ok || onlyKept} onClick={() => void run()}>
-          {busy ? "Publishing…" : plan.state === "new" ? "Add to OrcaSlicer" : onlyKept ? "Nothing to update - tick a value to overwrite it" : "Update in OrcaSlicer"}
+          {busy ? "Publishing…" : plan.state === "blocked" ? "Replace in OrcaSlicer" : plan.state === "new" ? "Add to OrcaSlicer" : onlyKept ? "Nothing to update - tick a value to overwrite it" : "Update in OrcaSlicer"}
         </button>
       )}
       {failed && (

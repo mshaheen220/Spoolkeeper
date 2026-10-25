@@ -128,7 +128,7 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 
 Verified against OrcaSlicer 2.4.2's own user presets:
 
-- **File and name.** The file name is the preset name, e.g. `Sunlu PLA Wood Walnut (Spool #13).json` (per spool) or `Sunlu PLA Wood Walnut.json` (per product).
+- **File and name.** The file name is the preset name, `Brand - Color` like the rest of OrcaSlicer's list (`Sunlu - Walnut.json`). Only when needed to keep names unique (`profileName` in `lib/orca/profile.ts`): the material for a same-colored non-PLA (`Sunlu - Black PETG`), the line for two of the same material (`Make Market - Glitter White`), and `(Spool #ID)` for a per-spool preset of a filament with several active spools. A same-named spoolman2slicer preset is replaced (backed up). One you made yourself blocks the publish unless the request sets `replace`.
 - **Values.** Each one is a single-element string array. Keys are sorted, with 4-space indent.
 - **`inherits`.** The material's Creality generic (`Creality Generic PLA`/`PETG`/`TPU`/`ABS`/`ASA`/`PLA-CF`), or OrcaFilamentLibrary's `Generic X @System`; see `server/src/lib/orca/bases.ts`.
 - **`compatible_printers`.** `[]` with an empty `compatible_printers_condition`, which means compatible with every printer (`Preset.cpp` `is_compatible_with_printer`, OrcaSlicer 2.4.2). Filament isn't machine-specific. Each calibration run records the printer preset and nozzle it was measured on (`calibration_runs.printer_profile` / `nozzle_diameter`, from Settings' "Printer you calibrate on"), and the profile notes list them as "Tuned on …".

@@ -23,6 +23,10 @@ export interface PublishPlan {
   existingFile: string | null;
   state: PlanState;
   blockedReason?: string;
+  /** Blocked only by a preset you made yourself; publishing with `replace` takes its place (backed up). */
+  replaceable?: boolean;
+  /** An older same-named preset this one takes the place of (backed up first). */
+  replaces?: { fileName: string; kind: "spoolman2slicer" | "yours" };
   changes: KeyChange[];
   publishedAt: string | null;
 }
@@ -42,7 +46,7 @@ export interface PublishResult {
   owner: string;
   name: string;
   fileName: string;
-  action: "created" | "updated" | "renamed" | "unchanged" | "blocked";
+  action: "created" | "updated" | "renamed" | "replaced" | "unchanged" | "blocked";
   kept: string[];
   backupDir: string | null;
   error?: string;
@@ -52,6 +56,7 @@ export interface PublishItem {
   spoolId: number;
   scope: ProfileScope;
   overwrite?: string[];
+  replace?: boolean;
 }
 
 export const fetchPublishList = (scope: ProfileScope) =>
@@ -59,6 +64,12 @@ export const fetchPublishList = (scope: ProfileScope) =>
 
 export const fetchPublishPlan = (spoolId: number, scope: ProfileScope) =>
   request<{ writable: Writable; restartNote: string; plan: PublishPlan }>(`/api/publish/spools/${spoolId}?scope=${scope}`);
+
+/** One line on what publishing does to an older same-named preset, if anything. */
+export const replacesNote = (p: PublishPlan) =>
+  p.replaces
+    ? `Takes the place of ${p.replaces.kind === "spoolman2slicer" ? "spoolman2slicer's" : "your"} "${p.replaces.fileName.replace(/\.json$/, "")}" (backed up first).`
+    : null;
 
 export const publish = (items: PublishItem[]) =>
   request<{ results: PublishResult[]; restartNote: string }>("/api/publish", { method: "POST", body: JSON.stringify({ items }) });

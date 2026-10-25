@@ -43,10 +43,32 @@ export interface BuiltProfile {
   info: string;
 }
 
-/** "Sunlu PLA Wood Walnut (Spool #13)" or "Sunlu PLA Wood Walnut". Characters macOS/Orca dislike in file names are dropped. */
-export function profileName(product: Product, scope: ProfileScope, spoolId: number): string {
-  const base = product.displayName.replace(/[/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
-  return scope === "spool" ? `${base} (Spool #${spoolId})` : base;
+/** Other filaments of the same brand and color name, which would otherwise share a preset name. */
+export interface NameContext {
+  /** Active spools of this product (a per-spool preset only needs its #ID when there's more than one). */
+  siblings: number;
+  clashes: { material: string; line: string | null }[];
+}
+
+/**
+ * "Sunlu - Walnut": brand, dash, color - how OrcaSlicer's list already
+ * reads. Only when needed to tell presets apart: the material for a
+ * same-colored non-PLA ("Sunlu - Black PETG"), the line for two of the
+ * same material ("Make Market - Glitter White"), and the Spool #ID for a
+ * per-spool preset when several spools of the filament are on the shelf.
+ * Characters macOS/OrcaSlicer dislike in file names are dropped.
+ */
+export function profileName(product: Product, scope: ProfileScope, spoolId: number, ctx: NameContext = { siblings: 1, clashes: [] }): string {
+  const color = product.colorName?.trim() || product.line?.trim() || product.material;
+  let name = `${product.vendor.name} - ${color}`;
+  if (ctx.clashes.length) {
+    const otherMaterial = ctx.clashes.some((c) => c.material.toUpperCase() !== product.material.toUpperCase());
+    if (otherMaterial && product.material.toUpperCase() !== "PLA") name = `${name} ${product.material}`;
+    else if (product.line?.trim() && product.colorName?.trim()) name = `${product.vendor.name} - ${product.line.trim()} ${color}`;
+    else if (product.material.toUpperCase() !== "PLA") name = `${name} ${product.material}`;
+  }
+  if (scope === "spool" && ctx.siblings > 1) name = `${name} (Spool #${spoolId})`;
+  return name.replace(/[/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -79,13 +101,15 @@ export function buildProfile(opts: {
   tuned?: Record<string, TunedValue>;
   tunedFromSpool?: number | null;
   linearAdvance?: LinearAdvance;
+  /** Siblings and same-colored filaments, for a unique but short preset name. */
+  nameContext?: NameContext;
   /** Installed OrcaSlicer version - picks base profile names (2.5 renamed Creality's generics). */
   orcaVersion?: string | null;
   now?: Date;
 }): BuiltProfile {
   const { spool, product, productSources: ps, scope } = opts;
   const base = baseFor(product.material, opts.orcaVersion);
-  const name = profileName(product, scope, spool.id);
+  const name = profileName(product, scope, spool.id, opts.nameContext);
   const values: ProfileValue[] = [];
   const src = (field: string) => ({ source: (ps[field]?.source ?? "manual") as Source, sourceRef: ps[field]?.sourceRef ?? null });
   const put = (key: string, value: string | number | null | undefined, from: Omit<ProfileValue, "key" | "value">) => {

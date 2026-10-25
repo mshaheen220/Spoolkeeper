@@ -1,21 +1,22 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { ProfileScope } from "../api/profile";
-import { fetchLegacy, fetchPublishList, publish, removeLegacy, type PlanState, type PublishListItem, type PublishResult } from "../api/publish";
+import { fetchLegacy, fetchPublishList, publish, removeLegacy, replacesNote, type PlanState, type PublishListItem, type PublishResult } from "../api/publish";
 import { PublishChanges, StateChip } from "../components/PublishChanges";
 import { STATE_LABEL } from "../lib/publishState";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
 
 const SCOPES: { value: ProfileScope; label: string; help: string }[] = [
-  { value: "spool", label: "One per spool", help: "Each spool gets its own preset, named with its Spool #ID." },
-  { value: "product", label: "One per filament", help: "Spools of the same filament share one preset." },
+  { value: "spool", label: "One per spool", help: "Each spool gets its own preset. Only a filament you have several spools of adds the Spool #ID." },
+  { value: "product", label: "One per filament", help: "Spools of the same filament share one preset, named brand - color." },
 ];
 
 const ACTION_TEXT: Record<PublishResult["action"], string> = {
   created: "added",
   updated: "updated",
   renamed: "renamed",
+  replaced: "replaced the old preset",
   unchanged: "already up to date",
   blocked: "not published",
 };
@@ -41,6 +42,8 @@ export function PublishPage() {
   const list = useAsync(() => fetchPublishList(scope), [scope]);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [overwrite, setOverwrite] = useState<Record<string, Set<string>>>({});
+  // Blocked presets you've chosen to replace (your own same-named preset, backed up first).
+  const [replace, setReplace] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<PlanState | "all">("all");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<{ results: PublishResult[]; restartNote: string } | null>(null);
@@ -52,10 +55,12 @@ export function PublishPage() {
     setLoadedFor(list.data);
     setSelected(preselect(list.data.items));
     setOverwrite({});
+    setReplace(new Set());
   }
 
   const items = list.data?.items ?? [];
-  const chosen = items.filter((i) => selected?.has(i.owner) && i.state !== "blocked");
+  const publishable = (i: PublishListItem) => i.state === "new" || i.state === "changes" || (i.state === "blocked" && replace.has(i.owner));
+  const chosen = items.filter((i) => selected?.has(i.owner) && publishable(i));
   const counts = items.reduce<Record<string, number>>((acc, i) => ({ ...acc, [i.state]: (acc[i.state] ?? 0) + 1 }), {});
   const shown = filter === "all" ? items : items.filter((i) => i.state === filter);
   const writable = list.data?.writable;
@@ -79,7 +84,7 @@ export function PublishPage() {
     setBusy(true);
     setError(null);
     try {
-      const r = await publish(chosen.map((i) => ({ spoolId: i.spoolIds[0], scope, overwrite: [...(overwrite[i.owner] ?? [])] })));
+      const r = await publish(chosen.map((i) => ({ spoolId: i.spoolIds[0], scope, overwrite: [...(overwrite[i.owner] ?? [])], replace: replace.has(i.owner) })));
       setResults(r);
       list.reload();
     } catch (e) {
@@ -188,8 +193,8 @@ export function PublishPage() {
                     <input
                       type="checkbox"
                       aria-label={`Publish ${i.name}`}
-                      disabled={blocked || i.state === "current"}
-                      checked={!blocked && i.state !== "current" && !!selected?.has(i.owner)}
+                      disabled={!publishable(i)}
+                      checked={publishable(i) && !!selected?.has(i.owner)}
                       onChange={() => toggle(i.owner)}
                     />
                     <Swatch hex={i.colorHex} size={28} />
@@ -205,6 +210,32 @@ export function PublishPage() {
                     <StateChip state={i.state} />
                   </div>
                   {blocked && <p className="mt-2 text-xs text-rose-400">{i.blockedReason}</p>}
+                  {blocked && i.replaceable && (
+                    <label className="mt-1 flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={replace.has(i.owner)}
+                        onChange={() => {
+                          const on = !replace.has(i.owner);
+                          setReplace((r) => {
+                            const next = new Set(r);
+                            if (on) next.add(i.owner);
+                            else next.delete(i.owner);
+                            return next;
+                          });
+                          // Choosing to replace it also picks it for publishing.
+                          setSelected((sel) => {
+                            const next = new Set(sel);
+                            if (on) next.add(i.owner);
+                            else next.delete(i.owner);
+                            return next;
+                          });
+                        }}
+                      />
+                      Replace it (backed up first)
+                    </label>
+                  )}
+                  {replacesNote(i) && <p className="mt-2 text-xs text-ink-400">{replacesNote(i)}</p>}
                   {i.state === "changes" && (
                     <details className="mt-2" open={handTuned > 0}>
                       <summary className="cursor-pointer text-xs text-ink-300">Show changes</summary>

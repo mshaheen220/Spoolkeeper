@@ -164,14 +164,21 @@ export interface PublishPlan {
   existingFile: string | null;
   state: PlanState;
   blockedReason?: string;
+  /** Blocked only by a preset you made yourself - publishing with `replace` backs it up and takes its place. */
+  replaceable?: boolean;
+  /** An older preset with the same name that this one takes the place of (backed up first). */
+  replaces?: { fileName: string; kind: "spoolman2slicer" | "yours" };
   changes: KeyChange[];
   publishedAt: string | null;
 }
+
+const isLegacy = (f: OrcaFile) => Boolean(flat(f.json._comment)?.includes(LEGACY_MARK));
 
 export function planPublish(
   built: BuiltProfile,
   ids: { spoolId: number; productId: number },
   files: OrcaFile[] = readUserFilaments(),
+  opts: { replace?: boolean } = {},
 ): PublishPlan {
   const owner = TAG_RE.exec(flat(built.json.filament_notes) ?? "")![1];
   const fileName = `${built.fileName}.json`;
@@ -189,15 +196,28 @@ export function planPublish(
     publishedAt: record?.publishedAt ?? null,
   };
 
-  if (atTarget && atTarget !== mine) {
-    return {
-      ...base,
-      state: "blocked",
-      blockedReason: atTarget.owner
-        ? `"${atTarget.fileName}" belongs to a different Spoolkeeper ${atTarget.owner.startsWith("spool=") ? "spool" : "product"} (${atTarget.owner}). Rename one of them in Spoolkeeper.`
-        : `OrcaSlicer already has a preset named "${built.name}" that Spoolkeeper didn't make. Rename or delete it in OrcaSlicer, then publish again.`,
-      changes: [],
-    };
+  // Same name as a preset Spoolkeeper doesn't own. spoolman2slicer's are
+  // what Spoolkeeper retires, so they're replaced (after a backup); one you
+  // made yourself only with your say-so; another Spoolkeeper preset never.
+  const foreign = atTarget && atTarget !== mine ? atTarget : null;
+  let replaces: PublishPlan["replaces"];
+  if (foreign) {
+    if (foreign.owner)
+      return {
+        ...base,
+        state: "blocked",
+        blockedReason: `"${foreign.fileName}" belongs to a different Spoolkeeper ${foreign.owner.startsWith("spool=") ? "spool" : "filament"} (${foreign.owner}). Give one of them a different color name in Spoolkeeper.`,
+        changes: [],
+      };
+    if (!isLegacy(foreign) && !opts.replace)
+      return {
+        ...base,
+        state: "blocked",
+        replaceable: true,
+        blockedReason: `OrcaSlicer already has a preset named "${built.name}" that you made or saved yourself. Replace it (it's backed up first), or rename it in OrcaSlicer.`,
+        changes: [],
+      };
+    replaces = { fileName: foreign.fileName, kind: isLegacy(foreign) ? "spoolman2slicer" : "yours" };
   }
 
   const current = mine?.json ?? {};
@@ -227,7 +247,8 @@ export function planPublish(
   const renamed = mine != null && mine.fileName !== fileName;
   return {
     ...base,
-    state: !mine ? "new" : changes.length || renamed ? "changes" : "current",
+    state: !mine ? "new" : changes.length || renamed || replaces ? "changes" : "current",
+    ...(replaces ? { replaces } : {}),
     changes,
   };
 }
@@ -238,7 +259,7 @@ export interface PublishResult {
   owner: string;
   name: string;
   fileName: string;
-  action: "created" | "updated" | "renamed" | "unchanged" | "blocked";
+  action: "created" | "updated" | "renamed" | "replaced" | "unchanged" | "blocked";
   /** Hand-tuned keys left as OrcaSlicer has them. */
   kept: string[];
   backupDir: string | null;
@@ -275,11 +296,11 @@ export function newBackupDir(kind: string) {
 export function applyPublish(
   built: BuiltProfile,
   ids: { spoolId: number; productId: number },
-  opts: { overwrite?: string[]; backupDir: string; dir?: string },
+  opts: { overwrite?: string[]; replace?: boolean; backupDir: string; dir?: string },
 ): PublishResult {
   const dir = opts.dir ?? filamentDir();
   const files = readUserFilaments(dir);
-  const plan = planPublish(built, ids, files);
+  const plan = planPublish(built, ids, files, { replace: opts.replace });
   const result = { owner: plan.owner, name: plan.name, fileName: plan.fileName, kept: [] as string[], backupDir: null as string | null };
   if (plan.state === "blocked") return { ...result, action: "blocked", error: plan.blockedReason };
 
@@ -323,23 +344,34 @@ export function applyPublish(
     backup(dir, mine.fileName, opts.backupDir);
     backupDir = opts.backupDir;
   }
+  // Taking an old preset's name: keep a copy, and write ours fresh rather than
+  // merging its settings (spoolman2slicer's flow 0.94 and Voron base are what
+  // this replaces). Its .info goes too, so ours carries the right base_id.
+  if (plan.replaces) {
+    backup(dir, plan.replaces.fileName, opts.backupDir);
+    backupDir = opts.backupDir;
+  }
 
-  writeFile(target, text);
   // The .info sidecar: keep OrcaSlicer's own when there is one (it tracks
   // sync state), just bumping updated_time; otherwise ours.
   const oldInfoPath = mine ? infoPathFor(path.join(dir, mine.fileName)) : null;
   const oldInfo = oldInfoPath && fs.existsSync(oldInfoPath) ? fs.readFileSync(oldInfoPath, "utf8") : null;
   const now = Math.floor(Date.now() / 1000);
   const info = oldInfo ? oldInfo.replace(/^updated_time = .*$/m, `updated_time = ${now}`) : built.info;
+
+  // Clear the old names before writing (everything is backed up by now). macOS
+  // ignores case in file names, so removing afterwards could delete the file
+  // just written when only the case changed.
+  for (const old of [renamed ? mine.fileName : null, plan.replaces?.fileName ?? null]) {
+    if (!old) continue;
+    fs.rmSync(path.join(dir, old), { force: true });
+    fs.rmSync(infoPathFor(path.join(dir, old)), { force: true });
+  }
+  writeFile(target, text);
   writeFile(infoPathFor(target), info);
 
-  if (renamed) {
-    fs.rmSync(path.join(dir, mine.fileName), { force: true });
-    if (oldInfoPath) fs.rmSync(oldInfoPath, { force: true });
-  }
-
   savePublished({ owner: plan.owner, scope: plan.scope, spoolId: plan.spoolId, productId: plan.productId, fileName: plan.fileName, written, contentHash: sha(text), backupDir });
-  return { ...result, backupDir, action: !mine ? "created" : renamed ? "renamed" : "updated" };
+  return { ...result, backupDir, action: plan.replaces ? "replaced" : !mine ? "created" : renamed ? "renamed" : "updated" };
 }
 
 // ---- spoolman2slicer leftovers ------------------------------------------------
@@ -353,7 +385,7 @@ export interface LegacyFile {
 /** Presets spoolman2slicer generated - the ones that kept overwriting tuned settings. */
 export function listLegacy(files: OrcaFile[] = readUserFilaments()): LegacyFile[] {
   return files
-    .filter((f) => flat(f.json._comment)?.includes(LEGACY_MARK))
+    .filter(isLegacy)
     .map((f) => ({ fileName: f.fileName, name: flat(f.json.name) ?? f.fileName.replace(/\.json$/, ""), inherits: flat(f.json.inherits) }));
 }
 

@@ -35,14 +35,14 @@ describe("OrcaSlicer profile", () => {
     const id = await addWalnut();
     const res = await request(app).get(`/api/spools/${id}/profile`).expect(200);
     expect(res.body.profile).toMatchObject({
-      name: `Sunlu PLA Wood Walnut (Spool #${id})`,
+      name: `Sunlu - Walnut (Spool #${id})`,
       inherits: "Creality Generic PLA",
       tunedOn: [],
     });
     const json = res.body.orca.json;
     expect(json).toMatchObject({
-      name: `Sunlu PLA Wood Walnut (Spool #${id})`,
-      filament_settings_id: [`Sunlu PLA Wood Walnut (Spool #${id})`],
+      name: `Sunlu - Walnut (Spool #${id})`,
+      filament_settings_id: [`Sunlu - Walnut (Spool #${id})`],
       inherits: "Creality Generic PLA",
       from: "User",
       compatible_printers: [],
@@ -69,14 +69,14 @@ describe("OrcaSlicer profile", () => {
   it("names a per-product preset without the spool id", async () => {
     const id = await addWalnut();
     const res = await request(app).get(`/api/spools/${id}/profile?scope=product`).expect(200);
-    expect(res.body.profile.name).toBe("Sunlu PLA Wood Walnut");
+    expect(res.body.profile.name).toBe("Sunlu - Walnut");
     expect(res.body.orca.json.filament_notes[0]).not.toContain("spool=");
   });
 
   it("downloads the preset JSON with an attachment name", async () => {
     const id = await addWalnut();
     const res = await request(app).get(`/api/spools/${id}/profile/orca.json`).expect(200);
-    expect(res.headers["content-disposition"]).toContain(encodeURIComponent(`Sunlu PLA Wood Walnut (Spool #${id}).json`));
+    expect(res.headers["content-disposition"]).toContain(encodeURIComponent(`Sunlu - Walnut (Spool #${id}).json`));
     expect(res.text.startsWith('{\n    "compatible_printers"')).toBe(true);
   });
 
