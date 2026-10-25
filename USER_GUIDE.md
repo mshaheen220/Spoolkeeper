@@ -41,7 +41,17 @@ Nothing in OrcaSlicer is changed. Imported values are badged **Orca**. Treat the
 
 On **Spools → ＋ Add spool**:
 
-1. **Scan barcode** opens a live camera view (on this computer at `http://localhost:8003`, or any `https://` address). Hold the barcode inside the box and it's read as soon as it's in focus. On a phone over the plain `http://` network address, browsers don't allow a live camera, so the button reads **Photo of barcode** instead: it opens the camera app, and you take a photo of the barcode. Either way, if the Open Filament Database knows the barcode, brand, type, line, color and size fill in automatically. You can also type the number and press **Enter** or **Find**.
+1. **Scan barcode** opens a live camera view. This works on this computer at `http://localhost:8003`, or at any `https://` address.
+   - **There's no button to press.** While the green dot says *Looking for a barcode*, it checks the picture several times a second and stops as soon as it reads one. Sideways barcodes are fine.
+   - **Which barcode:** use the one with 12-13 digits under it. It's usually on the box or bag. The label on the spool often has only a batch code or QR code. A QR code that links to a web page fills in the **product page** (then tap *Read page*). Anything else gets a note saying what it read.
+   - **If nothing happens after a few seconds,** tips appear:
+     - Laptop cameras can't focus close up, so move the barcode back until it's sharp.
+     - Hold it flat and out of glare.
+   - **Use a photo instead** reads a photo you choose. A photo taken on your phone is much sharper than a webcam.
+   - On a phone over the plain `http://` network address, browsers don't allow a live camera. The button reads **Photo of barcode** there, and you take a photo.
+   - You can always type the number and press **Enter** or **Find**.
+
+   If the Open Filament Database knows the barcode, brand, type, line, color and size fill in automatically.
 2. If there's no barcode, pick **brand**, a **material** shortcut (PLA, Silk PLA, Wood PLA, PETG, …) and the **color name**.
    - **Empty spool** weight fills in from your other spools of that brand. It uses the same material first, because brands often use a different spool for PETG than for PLA, and falls back to the brand alone. The note under the field says what it's based on, for example *From 3 of your 4 Sunlu PLA filaments (also seen: 163 g)*, and it's badged **Inferred**. It only fills a blank field. Type your own weight and it stays.
 3. Optionally paste the **product page URL** and tap **Read page**. If the page links a **technical datasheet (TDS) PDF**, Spoolkeeper reads that too; it skips safety sheets, RoHS/REACH and certificates. You can also paste a datasheet PDF link directly. **If a store blocks Spoolkeeper** (many do, Amazon especially), or the specs only appear once the page has loaded in a browser, use **"Paste the page's text"** under the URL box. On the product page, select all (⌘A), copy (⌘C), paste, and tap *Read pasted text*. It reads what you can see, the same way. Read page also tells you when the page itself was blocked, rather than quietly returning less. Datasheets often hold what the page doesn't: Shore hardness, density, drying temperature, and retraction, speed-tier and plate advice. That advice is kept in **Maker's print notes** for reference when calibrating. Spoolkeeper looks for printing and bed temperatures, speed and drying advice, and quotes the text it found each value in. Many stores (Amazon especially) block this; you'll see a message saying so.

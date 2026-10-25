@@ -7,7 +7,7 @@ import { FormField } from "../components/FormField";
 import { AppearanceFields, DetailsGrid, IdentityFields, LookupControls, SizeFields, Suggestions } from "../components/product/ProductSections";
 import { Swatch } from "../components/Swatch";
 import { useProductForm, type Provenance, type Values } from "../hooks/useProductForm";
-import { canUseLiveCamera, decodeBarcode } from "../lib/barcode";
+import { canUseLiveCamera, classifyCode, decodeBarcode } from "../lib/barcode";
 import type { Product } from "../types";
 
 const today = () => {
@@ -118,12 +118,27 @@ export function IntakePage() {
     }
   };
 
+  /** Whatever was scanned: look up a product barcode, use a QR link as the product page, explain anything else. */
+  const handleCode = async (raw: string) => {
+    const code = classifyCode(raw);
+    if (code.kind === "product") return findGtin(code.digits);
+    if (code.kind === "link") {
+      set("productUrl", code.url);
+      setScanStatus(`That's a QR code linking to ${new URL(code.url).host}. It's now the product page below - tap Read page to pull details from it.`);
+      return;
+    }
+    setScanStatus(
+      `Read "${code.text}" - that's not a product barcode (probably a batch or lot code). Look for the barcode with 12-13 digits under it, usually on the box or bag.`,
+    );
+  };
+
   const scanPhoto = async (file: File | undefined) => {
     if (!file) return;
+    setCameraOpen(false);
     setScanStatus("Reading barcode…");
     const code = await decodeBarcode(file);
-    if (code) await findGtin(code);
-    else setScanStatus("Couldn't read a barcode in that photo. Try closer, flatter and in focus, or type the number.");
+    if (code) await handleCode(code);
+    else setScanStatus("Couldn't read a barcode in that photo. Try a sharper photo with the barcode flat and filling more of the frame, or type the number.");
   };
 
   const submit = async (e: FormEvent) => {
@@ -218,8 +233,9 @@ export function IntakePage() {
             <CameraScanner
               onCode={(code) => {
                 setCameraOpen(false);
-                void findGtin(code);
+                void handleCode(code);
               }}
+              onPhoto={(f) => void scanPhoto(f)}
               onClose={() => setCameraOpen(false)}
             />
           )}
