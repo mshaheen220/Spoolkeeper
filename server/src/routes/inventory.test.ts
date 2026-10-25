@@ -84,3 +84,26 @@ describe("inventory API", () => {
     expect((await request(app).get("/api/spools?archived=1")).body.spools).toHaveLength(1);
   });
 });
+
+describe("empty-spool weight from the shelf", () => {
+  const add = (vendor: string, material: string, colorName: string, spoolWeightG?: number) =>
+    request(app)
+      .post("/api/spools")
+      .send({ product: { vendor, material, colorName, spoolWeightG } })
+      .expect(201);
+  const guess = (q: string) => request(app).get(`/api/products/spool-weight?${q}`).expect(200).then((r) => r.body.guess);
+
+  it("uses the brand's spools of the same material first, then the brand", async () => {
+    await add("Sunlu", "PLA", "Black", 130);
+    await add("Sunlu", "PLA", "White", 130);
+    await add("Sunlu", "PLA", "Wood", 140);
+    await add("Sunlu", "PETG", "Black", 163);
+    await add("Sunlu", "PLA", "Gray"); // no weight recorded - ignored
+
+    expect(await guess("vendor=sunlu&material=PLA")).toEqual({ value: 130, basis: "2 of your 3 Sunlu PLA filaments", others: [{ value: 140, count: 1 }] });
+    expect(await guess("vendor=Sunlu&material=PETG")).toMatchObject({ value: 163, basis: "your other Sunlu PETG filament" });
+    // No Sunlu TPU yet: fall back to every Sunlu spool.
+    expect(await guess("vendor=Sunlu&material=TPU")).toMatchObject({ value: 130, basis: "2 of your 4 Sunlu filaments" });
+    expect(await guess("vendor=Polymaker&material=PLA")).toBeNull();
+  });
+});

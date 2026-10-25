@@ -1,5 +1,6 @@
 import { materialDefaults } from "../materials";
 import type { Source } from "../schemas";
+import { spoolWeightFromShelf } from "../../db/repo";
 import { lookupGtin, searchOfd } from "./ofd";
 import { searchSpoolmanDb } from "./spoolmandb";
 import { searchSpoolz } from "./spoolz";
@@ -47,6 +48,25 @@ export async function enrich(q: EnrichQuery): Promise<EnrichResult> {
     if (r.status === "fulfilled") candidates.push(...r.value);
     else errors.push({ source: sources[i][0], message: r.reason instanceof Error ? r.reason.message : String(r.reason) });
   });
+  // What your other spools of the brand weigh empty - your own scale beats any dataset.
+  const shelf = q.vendor ? spoolWeightFromShelf(q.vendor, q.material ?? null) : null;
+  if (shelf)
+    candidates.push({
+      source: "inferred",
+      id: "shelf",
+      title: `Your other ${q.vendor} spools`,
+      sourceRef: null,
+      score: 0,
+      suggestions: [
+        {
+          field: "spoolWeightG",
+          value: shelf.value,
+          source: "inferred",
+          sourceRef: shelf.basis,
+          note: shelf.others.length ? `${shelf.basis}; also seen: ${shelf.others.map((o) => `${o.value} g`).join(", ")}` : shelf.basis,
+        },
+      ],
+    });
   const defaults = defaultsCandidate(q);
   if (defaults) candidates.push(defaults);
   return { candidates, errors };

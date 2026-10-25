@@ -20,6 +20,19 @@ export function findProductMatch(q: { vendor: string; material: string; line?: s
   return request<{ product: Product | null }>(`/api/products/match?${params}`).then((b) => b.product);
 }
 
+export interface ShelfSpoolWeight {
+  value: number;
+  /** "3 of your 4 Sunlu PLA filaments" */
+  basis: string;
+  others: { value: number; count: number }[];
+}
+
+/** Empty-spool weight guessed from the same brand's filaments you already have (brand + material first). */
+export function fetchShelfSpoolWeight(vendor: string, material: string) {
+  const params = new URLSearchParams({ vendor, material });
+  return request<{ guess: ShelfSpoolWeight | null }>(`/api/products/spool-weight?${params}`).then((b) => b.guess);
+}
+
 export interface SpoolCreateBody {
   productId?: number;
   product?: Record<string, unknown>;

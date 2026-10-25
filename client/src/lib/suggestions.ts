@@ -2,8 +2,8 @@ import type { Candidate, Suggestion } from "../api/enrich";
 import type { Source } from "../types";
 import type { ProductFieldKey } from "./productFields";
 
-/** Order alternatives are listed in (and the bulk fill prefers). */
-export const SOURCE_PRIORITY: Source[] = ["ofd", "spoolmandb", "spoolz", "product_url", "default"];
+/** Order alternatives are listed in (and the bulk fill prefers). Your own spools ("inferred") come first. */
+export const SOURCE_PRIORITY: Source[] = ["inferred", "ofd", "spoolmandb", "spoolz", "product_url", "default"];
 
 /** One distinct value for a field, and every source that suggested it. */
 export interface FieldOption {

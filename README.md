@@ -95,6 +95,7 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `GET /tips` (also `/tips/`) | `{ tips: [{ category, text }] }`, open CORS for Mashghal |
 | `GET /vendors`, `GET /products`, `GET /products/:id`, `PATCH /products/:id` | Inventory |
 | `GET /products/match?vendor=&material=&line=&colorName=` | Existing product with the same identity, or `null` |
+| `GET /products/spool-weight?vendor=&material=[&excludeProductId=]` | Empty-spool weight guessed from the brand's filaments on the shelf (same material first): `{ guess: { value, basis, others } \| null }`. Intake auto-fills it, and lookups list it as an `inferred` suggestion |
 | `GET /spools[?archived=1]`, `GET /spools/:id`, `POST /spools`, `PATCH /spools/:id` | Spools. `POST` takes `product` or `productId`, `quantity` and `sources: { "product.density": { source, sourceRef } }` |
 | `GET /enrich/search?vendor=&material=&line=&colorName=` | Candidates from every source; nothing saved |
 | `GET /enrich/gtin/:code` | Barcode → identity + OFD values |

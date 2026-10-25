@@ -313,7 +313,8 @@ export function DetailsGrid({ form }: { form: ProductForm }) {
           type={f.type === "number" || f.type === "url" ? f.type : "text"}
           unit={f.unit}
           step={f.step}
-          help={f.help}
+          // A guess from your own shelf says what it's based on, right where you'd check it.
+          help={prov[f.key]?.source === "inferred" && prov[f.key]?.sourceRef ? `From ${prov[f.key]!.sourceRef}. ${f.help ?? ""}`.trim() : f.help}
           value={values[f.key] ?? ""}
           onChange={(v) => set(f.key, v)}
           provenance={prov[f.key]}

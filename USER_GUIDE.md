@@ -43,6 +43,7 @@ On **Spools → ＋ Add spool**:
 
 1. **Scan barcode** opens a live camera view (on this computer at `http://localhost:8003`, or any `https://` address). Hold the barcode inside the box and it's read as soon as it's in focus. On a phone over the plain `http://` network address, browsers don't allow a live camera, so the button reads **Photo of barcode** instead: it opens the camera app, and you take a photo of the barcode. Either way, if the Open Filament Database knows the barcode, brand, type, line, color and size fill in automatically. You can also type the number and press **Enter** or **Find**.
 2. If there's no barcode, pick **brand**, a **material** shortcut (PLA, Silk PLA, Wood PLA, PETG, …) and the **color name**.
+   - **Empty spool** weight fills in from your other spools of that brand. It uses the same material first, because brands often use a different spool for PETG than for PLA, and falls back to the brand alone. The note under the field says what it's based on, for example *From 3 of your 4 Sunlu PLA filaments (also seen: 163 g)*, and it's badged **Inferred**. It only fills a blank field. Type your own weight and it stays.
 3. Optionally paste the **product page URL** and tap **Read page**. If the page links a **technical datasheet (TDS) PDF**, Spoolkeeper reads that too; it skips safety sheets, RoHS/REACH and certificates. You can also paste a datasheet PDF link directly. **If a store blocks Spoolkeeper** (many do, Amazon especially), or the specs only appear once the page has loaded in a browser, use **"Paste the page's text"** under the URL box. On the product page, select all (⌘A), copy (⌘C), paste, and tap *Read pasted text*. It reads what you can see, the same way. Read page also tells you when the page itself was blocked, rather than quietly returning less. Datasheets often hold what the page doesn't: Shore hardness, density, drying temperature, and retraction, speed-tier and plate advice. That advice is kept in **Maker's print notes** for reference when calibrating. Spoolkeeper looks for printing and bed temperatures, speed and drying advice, and quotes the text it found each value in. Many stores (Amazon especially) block this; you'll see a message saying so.
 4. Tap **🔎 Look up filament data**. The **Suggestions** card shows:
    - **Matched records**: which entry each source matched. Change it if it picked the wrong color, or choose "Don't use".
@@ -54,7 +55,7 @@ On **Spools → ＋ Add spool**:
 
 If you already have this filament, a banner offers **Add another spool of this**. That reuses its details, so you only log the purchase.
 
-Under each field, a short note explains why the value matters. Badges show where every value came from: **You**, **OFD** (Open Filament Database), **SpoolmanDB**, **spoolz**, **Page**, **Orca** or **Default**.
+Under each field, a short note explains why the value matters. Badges show where every value came from: **You**, **OFD** (Open Filament Database), **SpoolmanDB**, **spoolz**, **Page**, **Orca**, **Inferred** (from your own spools) or **Default**.
 
 ## 3. Colors, finish and flexibility
 

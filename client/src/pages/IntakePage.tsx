@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { lookupGtin, type GtinMatch } from "../api/enrich";
-import { createSpools, findProductMatch, type SourceMap } from "../api/inventory";
+import { createSpools, fetchShelfSpoolWeight, findProductMatch, type SourceMap } from "../api/inventory";
 import { CameraScanner } from "../components/CameraScanner";
 import { FormField } from "../components/FormField";
 import { AppearanceFields, DetailsGrid, IdentityFields, LookupControls, SizeFields, Suggestions } from "../components/product/ProductSections";
@@ -22,7 +22,7 @@ const INITIAL_PROVENANCE: Provenance = { diameterMm: { source: "default" }, netW
 export function IntakePage() {
   const navigate = useNavigate();
   const form = useProductForm(INITIAL_VALUES, INITIAL_PROVENANCE);
-  const { values, set, lookup, setExtras, setSelection } = form;
+  const { values, prov, set, lookup, setExtras, setSelection } = form;
   const [purchase, setPurchase] = useState({ quantity: "1", price: "", store: "", purchasedOn: today(), lot: "", notes: "" });
 
   const [gtinInput, setGtinInput] = useState("");
@@ -49,6 +49,30 @@ export function IntakePage() {
     return () => clearTimeout(timer);
   }, [vendor, material, line, colorName]);
   const activeMatch = vendor.trim() && material.trim() ? match : null;
+
+  // Empty-spool weight from your other spools of the brand (same material
+  // first). Only fills a blank field - or one it filled itself, so changing
+  // the brand updates it - never a value you typed or picked.
+  const spoolWeight = values.spoolWeightG ?? "";
+  const weightIsGuess = prov.spoolWeightG?.source === "inferred";
+  useEffect(() => {
+    if (!vendor.trim() || (spoolWeight !== "" && !weightIsGuess)) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchShelfSpoolWeight(vendor.trim(), material.trim())
+        .then((g) => {
+          if (cancelled) return;
+          if (g) set("spoolWeightG", String(g.value), "inferred", g.others.length ? `${g.basis} (also seen: ${g.others.map((o) => `${o.value} g`).join(", ")})` : g.basis);
+          else if (weightIsGuess) set("spoolWeightG", "", "manual");
+        })
+        .catch(() => {});
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-guess when the brand or material changes, not on every keystroke elsewhere
+  }, [vendor, material]);
 
   /** A barcode match fills the identity fields (it's the product itself), then looks up the rest. */
   const applyGtinMatch = (m: GtinMatch) => {

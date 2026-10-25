@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { getDb } from "../db";
 import {
+  spoolWeightFromShelf,
   createProduct,
   createSpool,
   findMatchingProduct,
@@ -63,6 +64,12 @@ const matchQuery = z.object({
 inventoryRouter.get("/products/match", (req, res) => {
   const q = matchQuery.parse(req.query);
   res.json({ product: findMatchingProduct({ ...q, line: q.line || null, colorName: q.colorName || null }) });
+});
+
+/** Empty-spool weight guessed from the same brand's filaments already on the shelf (null if none). */
+inventoryRouter.get("/products/spool-weight", (req, res) => {
+  const q = z.object({ vendor: z.string().min(1), material: z.string().optional(), excludeProductId: z.coerce.number().int().optional() }).parse(req.query);
+  res.json({ guess: spoolWeightFromShelf(q.vendor, q.material ?? null, q.excludeProductId) });
 });
 
 inventoryRouter.get("/products/:id", (req, res) => {

@@ -393,3 +393,43 @@ export function listImportedProfiles(productId: number): ImportedProfile[] {
     importedAt: r.imported_at as string,
   }));
 }
+
+// ------------------------------------------------- shelf-based guesses
+
+export interface ShelfSpoolWeight {
+  /** Grams - the most common empty-spool weight among the matching filaments. */
+  value: number;
+  /** "3 of your Sunlu PLA filaments" - what the guess is based on. */
+  basis: string;
+  /** Other weights seen for the same brand (and material), most common first. */
+  others: { value: number; count: number }[];
+}
+
+/**
+ * Empty-spool weight for a new filament, from the ones already on the shelf:
+ * a brand tends to use the same spool, but not for every material (Sunlu's
+ * PLA and PETG spools differ), so same brand + material is tried before
+ * brand alone. Ties go to the most recently added filament.
+ */
+export function spoolWeightFromShelf(vendor: string, material: string | null, excludeProductId?: number): ShelfSpoolWeight | null {
+  const rows = getDb()
+    .prepare(
+      `SELECT p.id, p.material, p.spool_weight_g AS w, v.name AS vendor FROM products p JOIN vendors v ON v.id = p.vendor_id
+       WHERE v.name = ? COLLATE NOCASE AND p.spool_weight_g IS NOT NULL AND p.id != ? ORDER BY p.id DESC`,
+    )
+    .all(vendor.trim(), excludeProductId ?? -1) as { id: number; material: string; w: number; vendor: string }[];
+  const sameMaterial = material ? rows.filter((r) => r.material.toUpperCase() === material.trim().toUpperCase()) : [];
+  const pool = sameMaterial.length ? sameMaterial : rows;
+  if (!pool.length) return null;
+  const counts = new Map<number, number>();
+  for (const r of pool) counts.set(r.w, (counts.get(r.w) ?? 0) + 1); // insertion order = newest first, so ties keep the newest
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }));
+  const [best, ...others] = ranked;
+  const brand = pool[0].vendor; // as saved, not as typed
+  const what = sameMaterial.length ? `${brand} ${material!.trim().toUpperCase()}` : brand;
+  return {
+    value: best.value,
+    basis: pool.length === 1 ? `your other ${what} filament` : `${best.count} of your ${pool.length} ${what} filaments`,
+    others,
+  };
+}
