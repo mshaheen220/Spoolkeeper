@@ -27,3 +27,16 @@ export const MATERIALS: MaterialDefaults[] = [
 export function materialDefaults(type: string): MaterialDefaults | null {
   return MATERIALS.find((m) => m.type.toLowerCase() === type.trim().toLowerCase()) ?? null;
 }
+
+const MATERIAL_TYPES = [...MATERIALS.map((m) => m.type)].sort((a, b) => b.length - a.length); // PLA-CF before PLA
+
+/** The first material type named as a word in any of the texts ("Silk PLA+ 1kg" -> "PLA"); null if none. */
+export function materialFrom(...texts: (string | null | undefined)[]): string | null {
+  for (const t of texts) {
+    if (!t) continue;
+    const upper = t.toUpperCase();
+    const hit = MATERIAL_TYPES.find((m) => new RegExp(`(^|[^A-Z])${m.replace("-", "\\-")}([^A-Z]|$)`).test(upper));
+    if (hit) return hit;
+  }
+  return null;
+}

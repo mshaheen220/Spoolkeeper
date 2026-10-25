@@ -2,6 +2,9 @@ import type { Source } from "../schemas";
 
 /** Product fields an enrichment source can suggest a value for. */
 export type EnrichField =
+  /** Identity - read from a store's product data. */
+  | "vendor"
+  | "material"
   | "colorName"
   | "colorHex"
   /** Comma-separated "#RRGGBB,#RRGGBB" so it compares and displays like other values. */

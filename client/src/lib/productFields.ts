@@ -1,6 +1,7 @@
 import type { ProductFields } from "../types";
 
-export type ProductFieldKey = keyof ProductFields;
+/** Product fields, plus the brand (stored on the vendor, but read from pages like any other value). */
+export type ProductFieldKey = keyof ProductFields | "vendor";
 
 export interface FieldMeta {
   key: ProductFieldKey;
@@ -14,6 +15,8 @@ export interface FieldMeta {
 
 /** Fields enrichment can fill, in the order the review and form show them. */
 export const DETAIL_FIELDS: FieldMeta[] = [
+  { key: "vendor", label: "Brand", type: "text" },
+  { key: "material", label: "Type", type: "text" },
   { key: "colorName", label: "Color name", type: "text" },
   { key: "colorHex", label: "Color", type: "color", help: "Shown in OrcaSlicer's filament dropdown and on the 3D preview." },
   { key: "colorHexes", label: "Colors (multi-color)", type: "colors" },
@@ -63,6 +66,8 @@ export const DETAIL_FIELDS: FieldMeta[] = [
 
 /** Fields with their own editors (identity, color, appearance); the rest go in the generic details grid. */
 const CUSTOM_EDITORS: ProductFieldKey[] = [
+  "vendor",
+  "material",
   "colorName",
   "colorHex",
   "colorHexes",

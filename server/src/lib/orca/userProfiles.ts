@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { finishesFromText, type Finish } from "../appearance";
-import { MATERIALS } from "../materials";
+import { materialFrom } from "../materials";
 import { hexColor, norm, tokens } from "../enrich/text";
 
 // Reads OrcaSlicer user filament presets (user/default/filament/*.json).
@@ -75,18 +75,6 @@ export interface OrcaImportRow {
   /** The tunable slicer keys this file actually set. */
   settings: Record<string, string>;
   warnings: string[];
-}
-
-const MATERIAL_TYPES = [...MATERIALS.map((m) => m.type)].sort((a, b) => b.length - a.length); // PLA-CF before PLA
-
-function materialFrom(...texts: (string | null | undefined)[]): string | null {
-  for (const t of texts) {
-    if (!t) continue;
-    const upper = t.toUpperCase();
-    const hit = MATERIAL_TYPES.find((m) => new RegExp(`(^|[^A-Z])${m.replace("-", "\\-")}([^A-Z]|$)`).test(upper));
-    if (hit) return hit;
-  }
-  return null;
 }
 
 // Words that describe the profile, not the filament: "@System", "Copy", "1.75mm", ".4 nozzle".

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractFromText, extractLooks, htmlToText, jsonLdProducts } from "./productPage";
+import { cleanColor, extractFromText, extractIdentity, extractLooks, htmlToText, jsonLdProducts } from "./productPage";
 
 const ref = "https://example.com/products/wood-pla";
 const values = (text: string) => Object.fromEntries(extractFromText(text, ref).map((s) => [s.field, s.value]));
@@ -94,5 +94,60 @@ describe("Ziro Fast Gradient Twinkling Translucent - Rose (real product text)", 
 
   it("still ignores 'nozzle: 0.4 mm'", () => {
     expect(values("Compatible nozzle: 0.4 mm and up")).toEqual({});
+  });
+});
+
+describe("brand, type and color from store data", () => {
+  // Shapes from the real Shopify product JSON of these stores (trimmed).
+  const polymaker = {
+    title: "Polymaker Matte PLA",
+    vendor: "Polymaker",
+    options: [{ name: "Color", values: ["Matte Army Dark Green", "Matte Black"] }, { name: "Size" }],
+    variants: [
+      { id: 43631458549817, option1: "Matte Army Dark Green", option2: "1.75mm 1kg" },
+      { id: 2, option1: "Matte Black", option2: "1.75mm 1kg" },
+    ],
+  };
+  const read = (shopify: object | null, url: string, known: string[] = [], ld: object | null = null) =>
+    extractIdentity({ shopify, ld, url: new URL(url) }, known);
+  const fields = (r: ReturnType<typeof read>) => Object.fromEntries(r.suggestions.map((s) => [s.field, s.value]));
+
+  it("reads the linked variant's color, the brand and the type", () => {
+    expect(fields(read(polymaker, "https://shop.polymaker.com/products/matte-pla?variant=43631458549817"))).toEqual({
+      vendor: "Polymaker",
+      material: "PLA",
+      colorName: "Army Dark Green",
+    });
+  });
+
+  it("won't guess the color when the link doesn't pick one", () => {
+    const r = read(polymaker, "https://shop.polymaker.com/products/matte-pla");
+    expect(fields(r).colorName).toBeUndefined();
+    expect(r.warnings[0]).toMatch(/sells 2 colors/);
+  });
+
+  it("keeps your spelling of a brand you already have, and recognizes it in the site's address", () => {
+    expect(fields(read({ title: "OVERTURE PLA", vendor: "Overture 3D" }, "https://overture3d.com/products/overture-pla", ["Overture"])).vendor).toBe("Overture");
+    expect(fields(read(null, "https://www.sunlu.com/products/tpu-95a-flexible-filament", ["Sunlu"], { name: "SUNLU TPU 95A" }))).toMatchObject({
+      vendor: "Sunlu",
+      material: "TPU",
+    });
+    // Not a brand you have: the address alone isn't trusted.
+    expect(fields(read(null, "https://www.sunlu.com/products/x", [], { name: "TPU" })).vendor).toBeUndefined();
+  });
+
+  it("takes JSON-LD brand and color on other stores", () => {
+    expect(fields(read(null, "https://example.com/p", [], { name: "Eryone Silk PETG", brand: { name: "Eryone" }, color: "Gold" }))).toEqual({
+      vendor: "Eryone",
+      material: "PETG",
+      colorName: "Gold",
+    });
+  });
+
+  it("strips weights, sizes, materials and finishes from color names", () => {
+    expect(cleanColor("1kg Silk Dual-Color Blue Purple")).toBe("Dual-Color Blue Purple");
+    expect(cleanColor("Matte Army Dark Green")).toBe("Army Dark Green");
+    expect(cleanColor("Rose / 1.75mm")).toBe("Rose");
+    expect(cleanColor("Fast Gradient Twinkling Translucent Rose")).toBe("Fast Gradient Twinkling Translucent Rose");
   });
 });

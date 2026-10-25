@@ -1,4 +1,6 @@
+import { listVendors } from "../../db/repo";
 import { finishesFromText } from "../appearance";
+import { materialFrom } from "../materials";
 import { HttpError } from "../http";
 import { fetchText } from "./fetch";
 import { readPdfText } from "./pdf";
@@ -29,6 +31,9 @@ export function htmlToText(html: string): string {
 interface JsonLdProduct {
   name?: string;
   description?: string;
+  brand?: string | { name?: string };
+  color?: string;
+  material?: string;
   gtin13?: string;
   gtin12?: string;
   gtin?: string;
@@ -302,18 +307,107 @@ export function readPastedText(text: string, pageUrl?: string): Candidate {
   };
 }
 
+/** The parts of Shopify's /products/<handle>.json that matter here. */
+export interface ShopifyProduct {
+  title?: string;
+  body_html?: string;
+  vendor?: string;
+  product_type?: string;
+  options?: { name?: string; values?: string[] }[];
+  variants?: { id?: number; title?: string; option1?: string | null; option2?: string | null; option3?: string | null }[];
+}
+
 /** Shopify stores expose clean product data at /products/<handle>.json. */
-async function shopifyText(url: URL): Promise<{ title?: string; text: string } | null> {
+async function shopifyProduct(url: URL): Promise<ShopifyProduct | null> {
   const m = url.pathname.match(/\/products\/([^/?#]+)/);
   if (!m) return null;
   try {
     const raw = await fetchText(`${url.origin}/products/${m[1]}.json`, { accept: "application/json", maxBytes: MAX_PAGE_BYTES });
-    const body = JSON.parse(raw) as { product?: { title?: string; body_html?: string } };
-    if (!body.product) return null;
-    return { title: body.product.title, text: htmlToText(body.product.body_html ?? "") };
+    return (JSON.parse(raw) as { product?: ShopifyProduct }).product ?? null;
   } catch {
     return null;
   }
+}
+
+/** Brand names compared loosely: "Overture 3D" is your "Overture", "SUNLU Official" is "Sunlu". */
+function brandKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(3d|official|store|shop|filaments?|technology|tech|inc|ltd|co)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * A variant's color without what other fields hold: "1kg Silk Dual-Color
+ * Blue Purple" -> "Dual-Color Blue Purple", "Matte Army Dark Green" ->
+ * "Army Dark Green". Finish words go (Finish has its own field); words that
+ * are part of a color's look, like Translucent, stay.
+ */
+export function cleanColor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/\b\d+(\.\d+)?\s*(kg|g|mm)\b/gi, " ")
+    .replace(/\b(PLA\+?|PLA-CF|PETG|TPU|ABS|ASA|PA|PC|HIPS|PVA|silk|matte?|glossy|marble|glitter|sparkle|filament|spool|roll|refill)\b/gi, " ")
+    .replace(/^[\s/|,-]+|[\s/|,-]+$/g, "")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || null;
+}
+
+/**
+ * Brand, material and color from the store's structured data (Shopify's
+ * product JSON, schema.org JSON-LD), not from prose. Color only comes from
+ * the variant the link points at (?variant=...) or a product with a single
+ * color - a page listing twelve colors doesn't say which spool you bought.
+ * A brand you already have keeps your spelling ("SUNLU" -> "Sunlu").
+ */
+export function extractIdentity(
+  opts: { shopify?: ShopifyProduct | null; ld?: JsonLdProduct | null; pageTitle?: string; url: URL },
+  knownVendors: string[] = [],
+): { suggestions: Suggestion[]; warnings: string[] } {
+  const { shopify, ld, pageTitle, url } = opts;
+  const ref = url.toString();
+  const out: Suggestion[] = [];
+  const warnings: string[] = [];
+  const add = (field: Suggestion["field"], value: string | null | undefined, note: string) => {
+    const v = value?.replace(/\s+/g, " ").trim();
+    if (v) out.push({ field, value: v, source: "product_url", sourceRef: ref, note });
+  };
+
+  // Brand. Shopify's vendor is the brand on a maker's own store; JSON-LD names it outright.
+  // Failing both, a brand you already have that the site's address names (sunlu.com -> Sunlu).
+  const ldBrand = typeof ld?.brand === "string" ? ld.brand : ld?.brand?.name;
+  const brand = (shopify?.vendor || ldBrand)?.trim();
+  if (brand) {
+    const known = knownVendors.find((v) => brandKey(v) === brandKey(brand));
+    add("vendor", known ?? brand, known && known !== brand ? `the store says “${brand}”` : "from the store's product data");
+  } else {
+    const host = url.hostname.toLowerCase().replace(/[^a-z0-9.]/g, "");
+    const known = knownVendors.find((v) => brandKey(v).length >= 4 && host.split(".").some((part) => part === brandKey(v) || part === `${brandKey(v)}3d`));
+    if (known) add("vendor", known, `from the site's address (${url.hostname})`);
+  }
+
+  // Material: a type named in the product's own fields, title first.
+  const title = shopify?.title ?? ld?.name ?? pageTitle;
+  add("material", materialFrom(ld?.material, title, shopify?.product_type), "named in the product title");
+
+  // Color: the linked variant's color option, or the only color there is.
+  if (shopify?.variants?.length) {
+    const colorIdx = (shopify.options ?? []).findIndex((o) => /colou?r|shade/i.test(o.name ?? ""));
+    const variantId = url.searchParams.get("variant");
+    const variant = shopify.variants.find((v) => String(v.id) === variantId) ?? (shopify.variants.length === 1 ? shopify.variants[0] : undefined);
+    const optionOf = (v: NonNullable<typeof variant>, i: number) => [v.option1, v.option2, v.option3][i];
+    if (variant && colorIdx >= 0) add("colorName", cleanColor(optionOf(variant, colorIdx)), "the color of the variant in the link");
+    else if (variant && (shopify.options?.length ?? 0) <= 1 && variant.title && variant.title !== "Default Title")
+      add("colorName", cleanColor(variant.title), "the variant in the link");
+    else if (!variant && colorIdx >= 0 && (shopify.options![colorIdx].values?.length ?? 0) > 1)
+      warnings.push(
+        `This page sells ${shopify.options![colorIdx].values!.length} colors and the link doesn't say which, so no color was read. Pick your color on the page and copy the link again (it then ends in ?variant=…), or type the color.`,
+      );
+  } else if (ld?.color) add("colorName", cleanColor(ld.color), "from the page's product data");
+
+  return { suggestions: out, warnings };
 }
 
 export async function readProductPage(rawUrl: string): Promise<Candidate> {
@@ -338,7 +432,8 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
   } catch (err) {
     pageError = err;
   }
-  const shopify = await shopifyText(url);
+  const shopifyRaw = await shopifyProduct(url);
+  const shopify = shopifyRaw ? { title: shopifyRaw.title, text: htmlToText(shopifyRaw.body_html ?? "") } : null;
   if (!html && !shopify) {
     const reason = pageError instanceof Error ? pageError.message : "no response";
     throw new HttpError(502, `Couldn't read that page (${reason}). Many stores block automated requests; enter the values from the box instead.`);
@@ -366,7 +461,12 @@ export async function readProductPage(rawUrl: string): Promise<Candidate> {
   const ref = url.toString();
   const pageTitle = shopify?.title ?? ld?.name ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? "";
   const productText = [pageTitle, shopify?.text, ld?.description].filter(Boolean).join("\n");
-  const pageFound = [...extractFromText(corpus, ref), ...extractLooks(productText, ref)];
+  const identity = extractIdentity(
+    { shopify: shopifyRaw, ld, pageTitle: htmlToText(pageTitle), url },
+    listVendors().map((v) => v.name),
+  );
+  warnings.push(...identity.warnings);
+  const pageFound = [...identity.suggestions, ...extractFromText(corpus, ref), ...extractLooks(productText, ref)];
   // Many makers keep the real numbers in a linked technical datasheet (TDS) PDF; read the first one
   // too. The page's own values come first; the datasheet fills in what the page didn't say.
   const sheet = findDatasheetLinks(html, url)[0];
