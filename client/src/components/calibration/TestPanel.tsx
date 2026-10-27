@@ -108,6 +108,9 @@ export function TestPanel({
   }, [spoolId, test.id, JSON.stringify(params), JSON.stringify(obs)]);
 
   const showPreview = missing.length === 0 && anyObs;
+  // Values the dialog asks for vs. ones the test takes from the selected filament profile.
+  const dialogParams = test.params.filter((f) => !f.fromProfile);
+  const profileParams = test.params.filter((f) => f.fromProfile);
 
   const save = async () => {
     setSaving(true);
@@ -141,14 +144,38 @@ export function TestPanel({
               </span>
             ))}
           </p>
-          {test.params.length > 0 && (
+          {dialogParams.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
-              {test.params.map((f) => (
+              {dialogParams.map((f) => (
                 <Field key={f.key} field={f} value={params[f.key] ?? ""} onChange={(v) => setParams((p) => ({ ...p, [f.key]: v }))} />
               ))}
             </div>
           )}
+          {test.orcaSets && (
+            <p className="text-xs leading-snug text-ink-400">
+              <span className="font-medium text-ink-300">OrcaSlicer sets for this test:</span> {test.orcaSets}
+            </p>
+          )}
         </div>
+      )}
+
+      {profileParams.length > 0 && (
+        <div className="space-y-2 rounded-md border border-ink-700 bg-ink-950/40 p-3">
+          <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">In the filament profile</p>
+          <div className="grid grid-cols-2 gap-3">
+            {profileParams.map((f) => (
+              <Field key={f.key} field={f} value={params[f.key] ?? ""} onChange={(v) => setParams((p) => ({ ...p, [f.key]: v }))} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {test.checks.length > 0 && (
+        <ul aria-label="Check before slicing" className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 day:text-amber-900">
+          {test.checks.map((c) => (
+            <li key={c}>⚠ {c}</li>
+          ))}
+        </ul>
       )}
 
       <ol className="list-decimal space-y-1 pl-5 text-sm text-ink-300">

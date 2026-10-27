@@ -105,14 +105,27 @@ Tap a spool in the list to see:
 
 ## 6. Calibrate a spool
 
-On a spool's page, tap **📐 Calibrate this spool**. The wizard follows OrcaSlicer's recommended order, and each step builds on the one before:
+On a spool's page, tap **📐 Calibrate this spool**. The wizard follows OrcaSlicer's recommended order, and each step builds on the one before.
+
+**Before any test print**, check your presets. The tests run on your real presets: OrcaSlicer sets walls, infill and layer height for each test, but it doesn't touch these:
+
+- **Supports and raft off.** Supports fill in the bridges, overhangs and gaps the tests are judged by.
+- **Fuzzy skin off.**
+- **The process Flow ratio at 1** (process › Quality). Only the flow test overrides it.
+- **Brim** can stay as it is. The temperature and max volumetric speed tests add their own.
+- When OrcaSlicer says presets are modified as it opens a test, **discard** them.
+- **Don't save presets after a test.** OrcaSlicer edits them to run the test (e.g. max volumetric speed 200), and saving keeps those edits. The one exception is putting Pass 1's flow ratio into the filament profile before Pass 2.
+
+The wizard shows this list at the top. Each step also says what OrcaSlicer sets for that test, plus anything extra to check (for example, the retraction tower takes speed, z-hop and wipe from your presets). If you find one of these switched on in the presets you print with every day, fix it there too.
+
+The steps:
 
 1. **Temperature.** Menu bar → Calibration › Temperature, with the filament type and start/end temperatures shown. The tower starts hottest at the bottom and gets 5 °C cooler every block. Enter the temperature printed on the best block.
 2. **Max volumetric speed.** Calibration › Max flowrate. Measure the height where the walls first turn rough or change sheen. Spoolkeeper works out start + height × step, then takes off a safety margin (15% unless you change it).
 3. **Pressure advance.** Skipped, because your Marlin firmware has no Linear Advance (`M900` → Unknown command). Exported profiles keep it switched off. If you ever flash firmware that has it, change this in Settings and the step comes back.
-4. **Flow ratio.** Two ways to do it:
+4. **Flow ratio.** Calibration › Flow ratio. The dialog has no number to type in: you only pick the test type (and leave Top Surface Pattern alone). The blocks are printed around the **Flow ratio in the selected filament profile**, so the wizard shows the value that should be there. Check it matches in OrcaSlicer before printing. Two ways to do it:
    - **Pass 1 + Pass 2:** pick the smoothest block's modifier in Pass 1 (−20 … +20). Put the result into OrcaSlicer's filament flow ratio before printing Pass 2 (−9 … 0); the wizard reminds you.
-   - **YOLO:** OrcaSlicer's single-print method.
+   - **YOLO:** OrcaSlicer's single-print method. Pick YOLO (Recommended) or YOLO (Perfectionist) in both the dialog and the wizard.
 5. **Retraction.** Calibration › Retraction (0 → 2 mm in 0.1 mm steps). Measure the height where stringing stops, or type the length from the G-code's `Calib_Retraction_tower` comment. Speed, z-hop type and wipe come prefilled from your printer profile (Slope Lift, 0.8 mm wipe); change them if this filament needs something different.
 6. **Cooling, bed and first layer** (optional). Fan speeds and bed temperatures for smooth and textured PEI that worked on real prints. The bed temperatures come **prefilled**: this spool's saved values, else the maker's range (smooth PEI at the middle, textured 5 °C warmer), else the base profile's default. Each field says where its number came from. The wizard also says which side your OrcaSlicer projects on this printer use (it reads OrcaSlicer's plate setting: Smooth High Temp Plate means smooth PEI, Textured PEI Plate means textured). Adjust them to what actually stuck, or save them as they are.
 

@@ -10,7 +10,7 @@ import {
   tunedForSpool,
   updateRun,
 } from "../lib/calibration/service";
-import { BASE_DEFAULTS, getTest, TESTS } from "../lib/calibration/tests";
+import { BASE_DEFAULTS, getTest, SETUP_CHECKS, TESTS } from "../lib/calibration/tests";
 import { asyncHandler, HttpError, idParam, notFound } from "../lib/http";
 
 export const calibrationRouter = Router();
@@ -40,6 +40,8 @@ calibrationRouter.get(
         optional: !!t.optional,
         why: t.why,
         orcaMenu: t.orcaMenu,
+        orcaSets: t.orcaSets ?? null,
+        checks: t.checks ?? [],
         instructions: t.instructions,
         params: t.params,
         observation: t.observation,
@@ -60,6 +62,7 @@ calibrationRouter.get(
       linearAdvance: ctx.linearAdvance,
       calibratingOn: await calibrationPrinter(),
       plateType: ctx.plateType,
+      setupChecks: SETUP_CHECKS,
       printerRetraction: ctx.printerRetraction,
       tests,
       runs: listRuns(spool.id),

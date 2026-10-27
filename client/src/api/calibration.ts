@@ -15,6 +15,7 @@ export interface InputField {
   help?: string;
   optional?: boolean;
   readOnly?: boolean;
+  fromProfile?: boolean;
 }
 
 export interface TestInfo {
@@ -24,6 +25,10 @@ export interface TestInfo {
   optional: boolean;
   why: string;
   orcaMenu: string[];
+  /** What OrcaSlicer forces for this test, so the presets' values don't matter there. */
+  orcaSets: string | null;
+  /** Preset settings OrcaSlicer leaves alone that can spoil this test. */
+  checks: string[];
   instructions: string[];
   params: InputField[];
   observation: InputField[];
@@ -69,6 +74,8 @@ export interface CalibrationState {
   linearAdvance: LinearAdvance;
   calibratingOn: { name: string; nozzleDiameter: number | null };
   plateType: { label: string; side: "smooth" | "textured" | "other"; perPrinter: boolean } | null;
+  /** Preset settings to check before any test print. */
+  setupChecks: string[];
   tests: TestInfo[];
   runs: CalibrationRun[];
   tuned: Record<string, TunedValue>;

@@ -26,6 +26,8 @@ export interface InputField {
   optional?: boolean;
   /** Shown for reference (what to pick in OrcaSlicer's dialog), not edited. */
   readOnly?: boolean;
+  /** Not in the dialog: the test reads it from the selected filament profile. */
+  fromProfile?: boolean;
 }
 
 export interface ResultValue {
@@ -73,6 +75,10 @@ export interface TestDef {
   why: string;
   /** Where to find it in OrcaSlicer's menu bar and what to pick. */
   orcaMenu: string[];
+  /** What OrcaSlicer forces for this test (Plater.cpp calib_*), so the presets' values don't matter there. */
+  orcaSets?: string;
+  /** Preset settings OrcaSlicer leaves alone that can spoil this particular test. */
+  checks?: string[];
   instructions: string[];
   params: InputField[];
   observation: InputField[];
@@ -157,6 +163,21 @@ function flowWarnings(newFlow: number): string[] {
     : [];
 }
 
+/**
+ * Preset settings to check before any test print. OrcaSlicer 2.5's calib_*
+ * functions force walls, infill, shells and layer height per test, but none
+ * of them touch supports, raft, fuzzy skin or the process flow ratio, and
+ * they leave their own edits in the presets as unsaved changes.
+ */
+export const SETUP_CHECKS = [
+  "Supports and raft off (process › Support: Enable support off, Raft layers 0). No test turns them off, and supports fill in the bridges, overhangs and gaps you're judging.",
+  "Fuzzy skin off (process › Others). It roughens the walls and top surfaces the tests are read from.",
+  "The process Flow ratio at 1 (process › Quality). It multiplies everything on top of the filament's flow ratio; only the flow test overrides it.",
+  "Brim: leave it as your process has it. The temperature and max volumetric speed tests add their own 5 mm brim, and a brim doesn't change the flow or retraction results.",
+  "When OrcaSlicer opens a test and says presets are modified, choose to discard them, so edits left over from the last test don't carry into this one.",
+  "Don't save presets after a test. OrcaSlicer edits them to run it (starting temperature, max volumetric speed 200, layer heights) and saving would keep those edits. Spoolkeeper publishes the results itself. The one exception: the flow ratio before Pass 2.",
+];
+
 // ------------------------------------------------------------- tests
 
 const temp: TestDef = {
@@ -165,6 +186,8 @@ const temp: TestDef = {
   title: "Temperature tower",
   why: "Temperature sets how runny the plastic is, so every later test depends on it. Too cold: weak layers and under-extrusion. Too hot: stringing, sagging overhangs and blobs.",
   orcaMenu: ["Calibration", "Temperature"],
+  orcaSets: "a 5 mm brim, the layer height, and the filament profile's nozzle temperature (set to the start temperature; don't save it).",
+  checks: ["Supports off matters most here: the bridges and overhangs on every block are what you're comparing."],
   instructions: [
     "Select this filament's profile (and your normal process) in OrcaSlicer first.",
     "In the dialog choose the filament type and the start/end temperatures below; the step is fixed at 5 °C.",
@@ -226,6 +249,8 @@ const mvs: TestDef = {
   title: "Max volumetric speed",
   why: "How much plastic per second the hotend can melt for this filament. OrcaSlicer slows any move that would go faster, so this caps speed before the nozzle under-extrudes or clogs.",
   orcaMenu: ["Calibration", "Max flowrate"],
+  orcaSets:
+    "vase mode, one wall, no infill or top/bottom layers, a brim, layer height and line width. In the filament profile it raises max volumetric speed to 200 and turns off slowing down for layer time; don't save those.",
   instructions: [
     "Set the nozzle temperature found in the temperature step first.",
     "Enter the start, end and step below in the dialog, then slice and print the vase-mode test.",
@@ -336,15 +361,19 @@ function flowCompute(kind: "flow1" | "flow2" | "flow_yolo") {
   };
 }
 
-const flowParams: InputField[] = [
-  {
-    key: "oldFlow",
-    label: "Flow ratio the test was printed with",
-    type: "number",
-    step: 0.001,
-    help: "The test builds on the selected filament profile's flow ratio - check it in OrcaSlicer's filament settings before printing.",
-  },
-];
+const oldFlowParam: InputField = {
+  key: "oldFlow",
+  label: "Flow ratio",
+  type: "number",
+  step: 0.001,
+  fromProfile: true,
+  help: "The dialog doesn't ask for it: the blocks are printed around the selected filament profile's Flow ratio (filament settings › Filament). Make sure it matches before printing.",
+};
+
+const flowPassParams: InputField[] = [{ key: "testType", label: "Calibration Test Type", type: "text", readOnly: true }, oldFlowParam];
+const DIALOG_DEFAULTS = "Leave Top Surface Pattern as it is.";
+const FLOW_ORCA_SETS =
+  "walls, 35% infill, top and bottom layers, layer height, top-surface speed, line width and flow, and ironing off - the blocks' flow modifiers override the process flow ratio too.";
 
 const FLOW_LOOK =
   "Look at the top surfaces under raking light and run a fingertip over them: pick the smoothest one with no gaps between lines. Too little flow shows gaps; too much shows ridges and a rough edge.";
@@ -354,15 +383,17 @@ const flow1: TestDef = {
   step: "flow",
   title: "Flow ratio – Pass 1 (coarse)",
   why: "Flow ratio scales how much plastic is pushed for every line. It fixes the small difference between what the slicer asks for and what this filament actually delivers.",
-  orcaMenu: ["Calibration", "Flow ratio", "Pass 1 (Coarse)"],
+  orcaMenu: ["Calibration", "Flow ratio"],
+  orcaSets: FLOW_ORCA_SETS,
   instructions: [
-    "Make sure this filament's profile is selected, with the flow ratio shown below.",
+    "Make sure this filament's profile is selected, with the flow ratio shown above.",
+    `In the dialog pick Pass 1 (Coarse). ${DIALOG_DEFAULTS}`,
     "Slice and print the nine blocks; each is labelled with its modifier (−20 … +20).",
     FLOW_LOOK,
   ],
-  params: flowParams,
+  params: flowPassParams,
   observation: [{ key: "modifier", label: "Best block's modifier", type: "select", options: opts(FLOW_PASS1) }],
-  suggestParams: (ctx) => ({ oldFlow: currentFlow(ctx).value }),
+  suggestParams: (ctx) => ({ testType: "Pass 1 (Coarse)", oldFlow: currentFlow(ctx).value }),
   compute: flowCompute("flow1"),
 };
 
@@ -371,15 +402,17 @@ const flow2: TestDef = {
   step: "flow",
   title: "Flow ratio – Pass 2 (fine)",
   why: "Refines Pass 1 in 1% steps.",
-  orcaMenu: ["Calibration", "Flow ratio", "Pass 2 (Fine)"],
+  orcaMenu: ["Calibration", "Flow ratio"],
+  orcaSets: FLOW_ORCA_SETS,
   instructions: [
-    "First put Pass 1's result into the filament profile's flow ratio in OrcaSlicer and save it - Pass 2 builds on it.",
+    "First put Pass 1's result into the filament profile's flow ratio in OrcaSlicer and save the filament profile - Pass 2 builds on it. The Pass 1 test only edits the process preset, so the save holds just your flow change.",
+    `In the dialog pick Pass 2 (Fine). ${DIALOG_DEFAULTS}`,
     "Slice and print the ten blocks (−9 … 0).",
     FLOW_LOOK,
   ],
-  params: flowParams,
+  params: flowPassParams,
   observation: [{ key: "modifier", label: "Best block's modifier", type: "select", options: opts(FLOW_PASS2) }],
-  suggestParams: (ctx) => ({ oldFlow: ctx.lastPass1Flow ?? currentFlow(ctx).value }),
+  suggestParams: (ctx) => ({ testType: "Pass 2 (Fine)", oldFlow: ctx.lastPass1Flow ?? currentFlow(ctx).value }),
   compute: flowCompute("flow2"),
 };
 
@@ -388,19 +421,26 @@ const flowYolo: TestDef = {
   step: "flow",
   title: "Flow ratio – YOLO (single pass)",
   why: "OrcaSlicer's current recommended flow test: one print with eleven blocks, read straight off as ± modifiers.",
-  orcaMenu: ["Calibration", "Flow ratio", "YOLO (Recommended) or YOLO (Perfectionist)"],
-  instructions: ["Make sure this filament's profile is selected, with the flow ratio shown below.", "Slice and print, then read the best block's modifier.", FLOW_LOOK],
+  orcaMenu: ["Calibration", "Flow ratio"],
+  orcaSets: FLOW_ORCA_SETS,
+  instructions: [
+    "Make sure this filament's profile is selected, with the flow ratio shown above.",
+    `In the dialog pick the YOLO test type you chose above. ${DIALOG_DEFAULTS}`,
+    "Slice and print, then read the best block's modifier.",
+    FLOW_LOOK,
+  ],
   params: [
-    ...flowParams,
     {
       key: "variant",
-      label: "Variant",
+      label: "Calibration Test Type",
       type: "select",
       options: [
-        { value: "recommended", label: "Recommended (±0.05 by 0.01)" },
-        { value: "perfectionist", label: "Perfectionist (−0.04 … +0.035 by 0.005)" },
+        { value: "recommended", label: "YOLO (Recommended)" },
+        { value: "perfectionist", label: "YOLO (Perfectionist)" },
       ],
+      help: "Recommended: ±0.05 in 0.01 steps. Perfectionist: −0.04 … +0.035 in 0.005 steps.",
     },
+    oldFlowParam,
   ],
   observation: [
     {
@@ -420,6 +460,11 @@ const retraction: TestDef = {
   title: "Retraction",
   why: "Pulling the filament back before travel moves stops ooze and stringing. Too little: strings. Too much: slow prints, and on a direct drive it can grind or jam the filament.",
   orcaMenu: ["Calibration", "Retraction"],
+  orcaSets: "the retraction length on every layer (so the profile's length doesn't matter), firmware retraction off, two walls, no infill and the layer height.",
+  checks: [
+    "Supports off matters most here: support between the two pillars would hide the strings.",
+    "Retraction speed, z-hop and wipe are not set by the test: they come from the printer profile, or from the filament profile's Setting Overrides where those are ticked. Make sure the values you record below are the ones the test printed with.",
+  ],
   instructions: [
     "Enter the start, end and step below (OrcaSlicer's defaults, made for direct drive).",
     "Slice and print. Retraction rises by one step for every millimetre above the 0.4 mm base.",

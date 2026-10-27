@@ -180,6 +180,19 @@ export function CalibratePage() {
         </p>
       )}
 
+      <details className="card px-4 py-3" open={data.runs.length === 0}>
+        <summary className="cursor-pointer font-medium">Before any test print: preset settings to check</summary>
+        <p className="mt-2 text-sm text-ink-400">
+          The tests run on your real presets. OrcaSlicer sets walls, infill and layer height for each test, but not these. If one is on in the presets you
+          print with every day and shouldn't be, fix it there too.
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-300">
+          {data.setupChecks.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      </details>
+
       <ol className="space-y-2">
         {STEPS.map((s, i) => {
           const test = testFor(s.id);

@@ -60,8 +60,8 @@ describe("calibration math", () => {
   });
 
   it("Pass 2 starts from Pass 1's result", () => {
-    expect(getTest("flow2").suggestParams(ctx({ lastPass1Flow: 1.029 }))).toEqual({ oldFlow: 1.029 });
-    expect(getTest("flow1").suggestParams(ctx())).toEqual({ oldFlow: 0.98 }); // Creality Generic PLA's flow
+    expect(getTest("flow2").suggestParams(ctx({ lastPass1Flow: 1.029 }))).toEqual({ testType: "Pass 2 (Fine)", oldFlow: 1.029 });
+    expect(getTest("flow1").suggestParams(ctx())).toEqual({ testType: "Pass 1 (Coarse)", oldFlow: 0.98 }); // Creality Generic PLA's flow
   });
 
   it("retraction: start + floor(height − 0.4) × step, plus recorded z-hop and wipe", () => {
