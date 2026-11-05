@@ -123,13 +123,32 @@ The steps:
 1. **Temperature.** Menu bar → Calibration › Temperature, with the filament type and start/end temperatures shown. The tower starts hottest at the bottom and gets 5 °C cooler every block. Enter the temperature printed on the best block.
 2. **Max volumetric speed.** Calibration › Max flowrate. Measure the height where the walls first turn rough or change sheen. Spoolkeeper works out start + height × step, then takes off a safety margin (15% unless you change it).
 3. **Pressure advance.** Skipped, because your Marlin firmware has no Linear Advance (`M900` → Unknown command). Exported profiles keep it switched off. If you ever flash firmware that has it, change this in Settings and the step comes back.
-4. **Flow ratio.** Calibration › Flow ratio. The dialog has no number to type in: you only pick the test type (and leave Top Surface Pattern alone). The blocks are printed around the **Flow ratio in the selected filament profile**, so the wizard shows the value that should be there. Check it matches in OrcaSlicer before printing. Two ways to do it:
+4. **Flow ratio.** Calibration › Flow ratio. The dialog has no number to type in: you only pick the test type and the Top Surface Pattern: **Monotonic** for Pass 1 and Pass 2, **Archimedean Chords** for YOLO. That's how OrcaSlicer's guide pairs them. The blocks are printed around the **Flow ratio in the selected filament profile**, so the wizard shows the value that should be there. Check it matches in OrcaSlicer before printing. Two ways to do it:
    - **Pass 1 + Pass 2:** pick the smoothest block's modifier in Pass 1 (−20 … +20). Put the result into OrcaSlicer's filament flow ratio before printing Pass 2 (−9 … 0); the wizard reminds you.
    - **YOLO:** OrcaSlicer's single-print method. Pick YOLO (Recommended) or YOLO (Perfectionist) in both the dialog and the wizard.
 5. **Retraction.** Calibration › Retraction (0 → 2 mm in 0.1 mm steps). Measure the height where stringing stops, or type the length from the G-code's `Calib_Retraction_tower` comment. Speed, z-hop type and wipe come prefilled from your printer profile (Slope Lift, 0.8 mm wipe); change them if this filament needs something different.
 6. **Cooling, bed and first layer** (optional). Fan speeds and bed temperatures for smooth and textured PEI that worked on real prints. The bed temperatures come **prefilled**: this spool's saved values, else the maker's range (smooth PEI at the middle, textured 5 °C warmer), else the base profile's default. Each field says where its number came from. The wizard also says which side your OrcaSlicer projects on this printer use (it reads OrcaSlicer's plate setting: Smooth High Temp Plate means smooth PEI, Textured PEI Plate means textured). Adjust them to what actually stuck, or save them as they are.
 
 Each step shows **the math** as you type. It warns you when a result looks odd: outside the maker's range, far from your known-good Sunlu Walnut Wood (210 °C, 1.2 mm), or a flow ratio far from 1.0, which usually means the extruder needs checking.
+
+### Copying results to similar filaments
+
+Calibrated one colour of a filament? Below the steps, **Copy to similar filaments** lists the other filaments of the same brand and material, for example the rest of your Sunlu PETG. Tick the results to copy (temperature, flow and so on) and the filaments to copy them to, then **Copy**.
+
+- Filaments that may print differently start **unticked**, with the reason shown: another finish (Translucent, Silk…), another line, a different maker's temperature range, or results of their own already.
+- Each copy shows in that filament's history as "copied from …". Running the test on that filament later replaces it, and **Don't use** in the history undoes it.
+- Copied values reach OrcaSlicer the next time you **Publish**.
+
+### A baseline for the whole material
+
+Most of what calibration finds is set by your printer (hotend, extruder, nozzle) more than by the brand. So one well-tuned PLA is a better starting point for your other PLAs than OrcaSlicer's generic profile. On a calibrated spool, **Use as PLA baseline** (or PETG, and so on) makes its results the default for every other filament of that material **that hasn't been tested itself**.
+
+- **Each filament's own results always win**, setting by setting. Test a filament's flow later and its flow replaces the baseline's, while the rest still comes from the baseline.
+- **It stays live.** Recalibrate the baseline spool and every filament using it follows. New spools of that material get it straight away.
+- **Specialty finishes are left out automatically**: Wood Fill, Marble, Silk, Glitter, Glow in the Dark, and carbon, glass or metal fill. Their particles and additives change how they melt. Switch any filament to **Use** or **Don't** to decide for yourself; **Auto** goes back to deciding by finish.
+- **Temperature and max speed go together.** Max speed was measured at the baseline's temperature, so a filament gets both or neither. They're held back when the baseline's temperature is outside that filament's maker range, or when the filament has tested either one itself. Flow, retraction and the rest still apply.
+- On the baseline spool's page, the card lists every filament of the material and what each one gets, so you can review the whole shelf in one place. On other spools, steps filled by the baseline show the value in blue with *from the PLA baseline · test to refine*.
+- In the OrcaSlicer profile, these values say *PLA baseline (Deeplee - Blue): …* so you can always tell them from a filament's own results.
 
 **Save result** stores the run with its date, what you saw, the computed value and your notes. Redo a step any time; the newest result is the one used. **History** lets you switch an older run back on (*Use again*) or switch one off (*Don't use*). Nothing is ever deleted.
 
@@ -178,7 +197,18 @@ What keeps your settings safe:
 - Renaming a filament in Spoolkeeper renames its preset instead of leaving a duplicate.
 - **Same name as an old preset.** If spoolman2slicer made it, Spoolkeeper's preset takes its place (backed up first). If you made or saved it yourself, it's **Blocked** because it may hold your tuning. Tick **Replace it** to swap it out (backed up first), or rename yours in OrcaSlicer to keep both.
 
-**Old spoolman2slicer presets.** At the bottom of the Publish page is a list of the presets spoolman2slicer generated (*Sunlu - Black*, …). Once a filament's Spoolkeeper preset is published, its old one shows **replaced ✓** and comes ticked. **Back up and remove** copies them to `data/backups/spoolman2slicer-<date>/`, then deletes them. Presets you made or saved yourself in OrcaSlicer aren't on this list, so remove those in OrcaSlicer if you no longer want them.
+Got several of your own same-named presets? **Replace all … of your same-named** above the list ticks them all at once.
+
+**Clean up OrcaSlicer.** At the bottom of the Publish page is every filament preset in OrcaSlicer that isn't a current Spoolkeeper one, grouped as: generated by spoolman2slicer, old Spoolkeeper presets (for a spool you archived, or from before you switched between one per spool and one per filament), and ones you made or saved in OrcaSlicer (copies, experiments). Each shows its temperature, flow and max speed so you can tell them apart. Once a filament's Spoolkeeper preset is published, its old one shows **replaced ✓** and comes ticked; **Select all** ticks the rest. **Back up and remove** copies them to `data/backups/cleanup-<date>/`, then deletes them. A preset that another one is built on (*inherits*) can only be removed together with it.
+
+#### Starting over with a clean OrcaSlicer list
+
+1. Make your best-calibrated spools the baselines (**Use as PLA baseline** on its Calibrate page, and the same for PETG). Review the list on that card, and switch any filament to **Use** or **Don't**.
+2. On **Publish**, pick **One per filament** (unless you want a separate preset for each spool), then **Select new & changed** and **Replace all … of your same-named**. Look over anything marked *edited in OrcaSlicer* (tick it to overwrite with Spoolkeeper's value), then **Publish**.
+3. In **Clean up OrcaSlicer**, check the list, **Select all**, and **Back up and remove**.
+4. Restart OrcaSlicer. Your presets are now exactly your shelf. To hide OrcaSlicer's own built-in filaments as well, open the filament list's edit button (next to the filament dropdown), untick the system filaments you don't use, and confirm.
+
+Everything removed or replaced is in `data/backups/`. Copy a file back into OrcaSlicer's `user/default/filament/` folder to restore it.
 
 **Download instead.** Under **Download instead** on a spool's page you can still get the `.json` and import it with OrcaSlicer's **File → Import → Import Configs…**.
 

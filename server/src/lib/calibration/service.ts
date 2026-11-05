@@ -2,12 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config";
 import { getDb } from "../../db";
-import { getSetting, listSpoolsForProduct, type Spool } from "../../db/repo";
+import { getSetting, listProducts, listSpoolsForProduct, type Product, type Spool } from "../../db/repo";
 import { DEFAULT_PRINTER_PROFILE } from "../orca/bases";
 import { readPlateType } from "../orca/appConfig";
 import { listUserPrinters } from "../orca/printers";
 import { orcaValue } from "../orca/userProfiles";
-import type { Computed, LinearAdvance, PrinterRetraction, ResultValue, TestContext, TestId } from "./tests";
+import { getTest, type Computed, type LinearAdvance, type PrinterRetraction, type ResultValue, type StepId, type TestContext, type TestId } from "./tests";
 
 export interface CalibrationRun {
   id: number;
@@ -23,6 +23,8 @@ export interface CalibrationRun {
   /** Printer preset and nozzle the run was measured on. */
   printerProfile: string | null;
   nozzleDiameter: number | null;
+  /** Set when the run was copied from another filament's calibration. */
+  copiedFrom: { runId: number; spoolId: number } | null;
 }
 
 export interface TunedValue {
@@ -52,15 +54,18 @@ function rowToRun(r: Row): CalibrationRun {
     createdAt: r.created_at as string,
     printerProfile: (r.printer_profile as string) ?? null,
     nozzleDiameter: (r.nozzle_diameter as number) ?? null,
+    copiedFrom: r.copied_from_run != null ? { runId: r.copied_from_run as number, spoolId: r.copied_from_spool as number } : null,
   };
 }
 
+const RUN_SELECT = "SELECT r.*, src.spool_id AS copied_from_spool FROM calibration_runs r LEFT JOIN calibration_runs src ON src.id = r.copied_from_run";
+
 export function listRuns(spoolId: number): CalibrationRun[] {
-  return (getDb().prepare("SELECT * FROM calibration_runs WHERE spool_id = ? ORDER BY created_at, id").all(spoolId) as Row[]).map(rowToRun);
+  return (getDb().prepare(`${RUN_SELECT} WHERE r.spool_id = ? ORDER BY r.created_at, r.id`).all(spoolId) as Row[]).map(rowToRun);
 }
 
 export function getRun(id: number): CalibrationRun | null {
-  const r = getDb().prepare("SELECT * FROM calibration_runs WHERE id = ?").get(id) as Row | undefined;
+  const r = getDb().prepare(`${RUN_SELECT} WHERE r.id = ?`).get(id) as Row | undefined;
   return r ? rowToRun(r) : null;
 }
 
@@ -109,6 +114,78 @@ export function tunedFromRuns(runs: CalibrationRun[]): Record<string, TunedValue
 }
 
 export const tunedForSpool = (spoolId: number) => tunedFromRuns(listRuns(spoolId));
+
+export interface CopyTarget {
+  productId: number;
+  displayName: string;
+  colorHex: string | null;
+  colorHexes: string[] | null;
+  multiColorDirection: Product["multiColorDirection"];
+  /** The spool the copied runs go on: its calibrated spool, else its first active one. */
+  spoolId: number;
+  /** Why this filament may print differently from the source - each one unticks it by default. */
+  differences: string[];
+  /** Steps it already has its own (not copied) results for. */
+  calibratedSteps: StepId[];
+}
+
+const finishSet = (p: Product) => new Set((p.finishes ?? []).filter((f) => f !== "Basic"));
+
+/** Other filaments of the same brand and material that this spool's calibration could be copied to. */
+export function copyTargets(source: Spool): CopyTarget[] {
+  const src = source.product;
+  const srcFinishes = finishSet(src);
+  const out: CopyTarget[] = [];
+  for (const p of listProducts()) {
+    if (p.id === src.id || p.vendor.id !== src.vendor.id || p.material.toUpperCase() !== src.material.toUpperCase()) continue;
+    const active = listSpoolsForProduct(p.id).filter((s) => !s.archived);
+    if (!active.length) continue;
+    const calibrated = calibratedSpoolForProduct(p.id, active[0].id);
+    const spoolId = active.some((s) => s.id === calibrated) ? calibrated! : active[0].id;
+
+    const differences: string[] = [];
+    const finishes = finishSet(p);
+    for (const f of finishes) if (!srcFinishes.has(f)) differences.push(f);
+    for (const f of srcFinishes) if (!finishes.has(f)) differences.push(`Not ${f}`);
+    if ((p.line ?? "") !== (src.line ?? "")) differences.push(p.line ? `${p.line} line` : "No line name");
+    if (p.nozzleMin !== src.nozzleMin || p.nozzleMax !== src.nozzleMax) {
+      if (p.nozzleMin != null && p.nozzleMax != null) differences.push(`Maker's range ${p.nozzleMin}–${p.nozzleMax} °C`);
+    }
+
+    const own = listRuns(spoolId).filter((r) => r.accepted && !r.copiedFrom);
+    const calibratedSteps = [...new Set(own.map((r) => getTest(r.test).step))];
+    out.push({ productId: p.id, displayName: p.displayName, colorHex: p.colorHex, colorHexes: p.colorHexes, multiColorDirection: p.multiColorDirection, spoolId, differences, calibratedSteps });
+  }
+  return out.sort((a, b) => a.differences.length - b.differences.length || a.displayName.localeCompare(b.displayName));
+}
+
+/**
+ * Copies the source spool's latest accepted run of each test in `steps` onto
+ * each target spool, oldest first so the same run wins there as here. A run
+ * already copied to a target isn't copied again.
+ */
+export function copyCalibration(sourceSpoolId: number, targetSpoolIds: number[], steps: StepId[]): { spoolId: number; copied: number }[] {
+  const latest = new Map<TestId, CalibrationRun>();
+  for (const run of listRuns(sourceSpoolId)) if (run.accepted && steps.includes(getTest(run.test).step)) latest.set(run.test, run);
+  const runs = [...latest.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+
+  const insert = getDb().prepare(
+    `INSERT INTO calibration_runs (spool_id, test, params, observation, result, formula, notes, printer_profile, nozzle_diameter, copied_from_run)
+     SELECT ?, test, params, observation, result, formula, notes, printer_profile, nozzle_diameter, id FROM calibration_runs WHERE id = ?`,
+  );
+  const already = getDb().prepare("SELECT 1 FROM calibration_runs WHERE spool_id = ? AND copied_from_run = ? AND accepted = 1");
+  return getDb().transaction(() =>
+    targetSpoolIds.map((spoolId) => {
+      let copied = 0;
+      for (const run of runs) {
+        if (already.get(spoolId, run.id)) continue;
+        insert.run(spoolId, run.id);
+        copied++;
+      }
+      return { spoolId, copied };
+    }),
+  )();
+}
 
 /**
  * For a per-product profile: the spool of this product with the most recent

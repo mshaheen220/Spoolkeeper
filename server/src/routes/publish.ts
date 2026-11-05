@@ -1,18 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getDb } from "../db";
 import { getSpool, listSpools } from "../db/repo";
 import { idParam, notFound } from "../lib/http";
 import {
   applyPublish,
   filamentDir,
   folderWritable,
-  listLegacy,
+  listStrays,
   listPublished,
   newBackupDir,
   planPublish,
   readUserFilaments,
-  removeLegacy,
+  removeStrays,
   type PublishResult,
 } from "../lib/orca/publish";
 import { buildForSpool } from "../lib/orca/spoolProfile";
@@ -94,37 +93,34 @@ publishRouter.post("/publish", (req, res) => {
 });
 
 /**
- * spoolman2slicer's generated presets, each with the Spoolkeeper filament it
- * was imported as and whether that filament has a published preset yet - so
- * nothing is removed before its replacement exists.
+ * Every preset in OrcaSlicer that isn't a current Spoolkeeper one, each with
+ * whether its filament has a published Spoolkeeper preset yet - so nothing
+ * is removed before its replacement exists.
  */
-publishRouter.get("/publish/legacy", (_req, res) => {
-  const imported = new Map(
-    (getDb().prepare("SELECT file_name, product_id FROM imported_profiles").all() as { file_name: string; product_id: number }[]).map((r) => [
-      r.file_name,
-      r.product_id,
-    ]),
-  );
+publishRouter.get("/publish/strays", (_req, res) => {
   const spools = listSpools();
   const files = readUserFilaments();
-  const live = new Set(files.map((f) => f.owner).filter(Boolean));
+  const found = listStrays(files);
+  // Current Spoolkeeper presets only - a stale one doesn't count as its own replacement.
+  const stale = new Set(found.map((f) => f.owner));
+  const live = new Set(files.map((f) => f.owner).filter((o) => o && !stale.has(o)));
   const publishedProducts = new Set(listPublished().filter((p) => live.has(p.owner)).map((p) => p.productId));
-  const legacy = listLegacy(files).map((f) => {
-    const productId = imported.get(f.fileName) ?? null;
-    const spoolIds = productId == null ? [] : spools.filter((s) => s.product.id === productId).map((s) => s.id);
-    return { ...f, productId, spoolIds, replaced: productId != null && publishedProducts.has(productId) };
-  });
-  res.json({ writable: folderWritable(), legacy });
+  const strays = found.map((f) => ({
+    ...f,
+    spoolIds: f.productId == null ? [] : spools.filter((s) => s.product.id === f.productId).map((s) => s.id),
+    replaced: f.productId != null && publishedProducts.has(f.productId),
+  }));
+  res.json({ writable: folderWritable(), strays });
 });
 
 const removeBody = z.object({ files: z.array(z.string().min(1)).min(1).max(500) });
 
-publishRouter.post("/publish/legacy/remove", (req, res) => {
+publishRouter.post("/publish/strays/remove", (req, res) => {
   const { files } = removeBody.parse(req.body);
   const writable = folderWritable();
   if (!writable.ok) {
     res.status(409).json({ error: writable.reason });
     return;
   }
-  res.json({ ...removeLegacy(files, newBackupDir("spoolman2slicer")), restartNote: RESTART_NOTE });
+  res.json({ ...removeStrays(files, newBackupDir("cleanup")), restartNote: RESTART_NOTE });
 });

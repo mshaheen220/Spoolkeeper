@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { ProfileScope } from "../api/profile";
-import { fetchLegacy, fetchPublishList, publish, removeLegacy, replacesNote, type PlanState, type PublishListItem, type PublishResult } from "../api/publish";
+import {
+  fetchPublishList,
+  fetchStrays,
+  publish,
+  removeStrays,
+  replacesNote,
+  type PlanState,
+  type PublishListItem,
+  type PublishResult,
+  type StrayFile,
+  type StrayKind,
+} from "../api/publish";
 import { PublishChanges, StateChip } from "../components/PublishChanges";
 import { STATE_LABEL } from "../lib/publishState";
 import { Swatch } from "../components/Swatch";
@@ -35,7 +46,7 @@ const preselect = (items: PublishListItem[]) =>
 /**
  * Publish every spool's preset into OrcaSlicer at once: what's new, what
  * changed (key by key), and what was edited in OrcaSlicer and will be kept.
- * Below, the spoolman2slicer presets these replace, for cleanup.
+ * Below, every other preset in OrcaSlicer, for cleanup.
  */
 export function PublishPage() {
   const [scope, setScope] = useState<ProfileScope>("spool");
@@ -61,6 +72,11 @@ export function PublishPage() {
   const items = list.data?.items ?? [];
   const publishable = (i: PublishListItem) => i.state === "new" || i.state === "changes" || (i.state === "blocked" && replace.has(i.owner));
   const chosen = items.filter((i) => selected?.has(i.owner) && publishable(i));
+  const replaceable = items.filter((i) => i.state === "blocked" && i.replaceable);
+  const replaceAll = () => {
+    setReplace(new Set(replaceable.map((i) => i.owner)));
+    setSelected((sel) => new Set([...(sel ?? []), ...replaceable.map((i) => i.owner)]));
+  };
   const counts = items.reduce<Record<string, number>>((acc, i) => ({ ...acc, [i.state]: (acc[i.state] ?? 0) + 1 }), {});
   const shown = filter === "all" ? items : items.filter((i) => i.state === filter);
   const writable = list.data?.writable;
@@ -173,7 +189,12 @@ export function PublishPage() {
                   {f === "all" ? `All ${items.length}` : `${STATE_LABEL[f].text} ${counts[f]}`}
                 </button>
               ))}
-            <span className="ml-auto flex gap-1.5">
+            <span className="ml-auto flex flex-wrap gap-1.5">
+              {replaceable.length > 0 && (
+                <button type="button" className="text-xs text-accent-400 underline" onClick={replaceAll}>
+                  Replace all {replaceable.length} of your same-named
+                </button>
+              )}
               <button type="button" className="text-xs text-accent-400 underline" onClick={() => setSelected(preselect(items))}>
                 Select new &amp; changed
               </button>
@@ -264,35 +285,65 @@ export function PublishPage() {
       )}
 
       {/* Re-checked after each publish: that's what makes an old preset safe to remove. */}
-      <LegacySection refresh={results} />
+      <CleanupSection refresh={results} />
     </div>
   );
 }
 
-/** spoolman2slicer's generated presets: back them up and remove them once Spoolkeeper's replace them. */
-function LegacySection({ refresh }: { refresh: unknown }) {
-  const legacy = useAsync(fetchLegacy, [refresh]);
+const KIND_HEADING: Record<StrayKind, { title: string; help: string }> = {
+  spoolman2slicer: { title: "From spoolman2slicer", help: "The generated presets that kept overwriting your tuning." },
+  spoolkeeper: { title: "Old Spoolkeeper presets", help: "Published by Spoolkeeper, but no longer current." },
+  yours: { title: "Made or saved in OrcaSlicer", help: "Copies, experiments and older hand-made presets. Each one's main values are shown so you can tell them apart." },
+};
+const KIND_ORDER: StrayKind[] = ["spoolman2slicer", "spoolkeeper", "yours"];
+
+const valuesText = (v: Record<string, string>) =>
+  [
+    v.nozzle_temperature && `${v.nozzle_temperature} °C`,
+    v.filament_flow_ratio && `flow ${v.filament_flow_ratio}`,
+    v.filament_max_volumetric_speed && `${v.filament_max_volumetric_speed} mm³/s`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+/** Safe to remove without asking twice: its filament has a current Spoolkeeper preset, or it's Spoolkeeper's own stale one. */
+const safe = (f: StrayFile) => f.replaced || f.kind === "spoolkeeper";
+
+/**
+ * Every filament preset in OrcaSlicer that isn't a current Spoolkeeper one:
+ * back them up and remove them, so OrcaSlicer's list is just your shelf.
+ */
+function CleanupSection({ refresh }: { refresh: unknown }) {
+  const strays = useAsync(fetchStrays, [refresh]);
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const [loadedFor, setLoadedFor] = useState<unknown>(null);
   const [done, setDone] = useState<{ removed: string[]; backupDir: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (legacy.data && legacy.data !== loadedFor) {
-    setLoadedFor(legacy.data);
-    setPicked(new Set(legacy.data.legacy.filter((f) => f.replaced).map((f) => f.fileName)));
+  if (strays.data && strays.data !== loadedFor) {
+    setLoadedFor(strays.data);
+    setPicked(new Set(strays.data.strays.filter(safe).map((f) => f.fileName)));
   }
-  const files = legacy.data?.legacy ?? [];
+  const files = strays.data?.strays ?? [];
   if (!files.length && !done) return null;
+
+  const toggle = (fileName: string) =>
+    setPicked((s) => {
+      const next = new Set(s);
+      if (next.has(fileName)) next.delete(fileName);
+      else next.add(fileName);
+      return next;
+    });
 
   const remove = async () => {
     const list = [...(picked ?? [])];
-    if (!window.confirm(`Back up and remove ${list.length} spoolman2slicer preset${list.length === 1 ? "" : "s"} from OrcaSlicer?`)) return;
+    if (!window.confirm(`Back up and remove ${list.length} preset${list.length === 1 ? "" : "s"} from OrcaSlicer?`)) return;
     setBusy(true);
     setError(null);
     try {
-      setDone(await removeLegacy(list));
-      legacy.reload();
+      setDone(await removeStrays(list));
+      strays.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -301,14 +352,14 @@ function LegacySection({ refresh }: { refresh: unknown }) {
   };
 
   return (
-    <section className="card space-y-3" aria-labelledby="legacy-heading">
+    <section className="card space-y-3" aria-labelledby="cleanup-heading">
       <div>
-        <h2 id="legacy-heading" className="font-semibold">
-          Old spoolman2slicer presets
+        <h2 id="cleanup-heading" className="font-semibold">
+          Clean up OrcaSlicer
         </h2>
         <p className="text-sm text-ink-400">
-          These are the generated presets that kept overwriting your tuning. Remove each one once its Spoolkeeper preset is published. Removed files are
-          backed up first.
+          Every other filament preset in OrcaSlicer. Publish first, then remove what's left so the list is just your shelf. Ones whose filament already has
+          a Spoolkeeper preset start ticked. Removed files are backed up first.
         </p>
       </div>
       {done && (
@@ -318,35 +369,46 @@ function LegacySection({ refresh }: { refresh: unknown }) {
       )}
       {files.length > 0 && (
         <>
-          <ul className="divide-y divide-ink-800">
-            {files.map((f) => (
-              <li key={f.fileName} className="flex items-center gap-3 py-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  aria-label={`Remove ${f.name}`}
-                  checked={!!picked?.has(f.fileName)}
-                  onChange={() =>
-                    setPicked((s) => {
-                      const next = new Set(s);
-                      if (next.has(f.fileName)) next.delete(f.fileName);
-                      else next.add(f.fileName);
-                      return next;
-                    })
-                  }
-                />
-                <span className="min-w-0 flex-1 break-words">{f.fileName.replace(/\.json$/, "")}</span>
-                <span className={`text-xs ${f.replaced ? "text-emerald-400" : "text-amber-400"}`}>
-                  {f.replaced ? "replaced ✓" : f.spoolIds.length ? `publish #${f.spoolIds.join(", #")} first` : "not imported"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="flex gap-3">
+            <button type="button" className="text-xs text-accent-400 underline" onClick={() => setPicked(new Set(files.map((f) => f.fileName)))}>
+              Select all {files.length}
+            </button>
+            <button type="button" className="text-xs text-ink-400 underline" onClick={() => setPicked(new Set())}>
+              None
+            </button>
+          </div>
+          {KIND_ORDER.filter((k) => files.some((f) => f.kind === k)).map((kind) => (
+            <div key={kind}>
+              <h3 className="text-xs font-semibold tracking-wide text-ink-400 uppercase">{KIND_HEADING[kind].title}</h3>
+              <p className="text-xs text-ink-500">{KIND_HEADING[kind].help}</p>
+              <ul className="mt-1 divide-y divide-ink-800">
+                {files
+                  .filter((f) => f.kind === kind)
+                  .map((f) => (
+                    <li key={f.fileName} className="flex items-start gap-3 py-1.5 text-sm">
+                      <input type="checkbox" className="mt-1" aria-label={`Remove ${f.name}`} checked={!!picked?.has(f.fileName)} onChange={() => toggle(f.fileName)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words">{f.fileName.replace(/\.json$/, "")}</span>
+                        <span className="block text-xs text-ink-400">
+                          {[valuesText(f.values), f.reason, f.inheritedBy.length ? `${f.inheritedBy.map((c) => c.replace(/\.json$/, "")).join(", ")} is built on it` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      <span className={`shrink-0 text-xs ${safe(f) ? "text-emerald-400" : "text-amber-400"}`}>
+                        {f.kind === "spoolkeeper" ? "stale" : f.replaced ? "replaced ✓" : f.spoolIds.length ? `publish #${f.spoolIds.join(", #")} first` : "no filament"}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
           {error && (
             <p role="alert" className="text-sm text-rose-400">
               {error}
             </p>
           )}
-          <button type="button" className="btn w-full" disabled={busy || !picked?.size || !legacy.data?.writable.ok} onClick={() => void remove()}>
+          <button type="button" className="btn w-full" disabled={busy || !picked?.size || !strays.data?.writable.ok} onClick={() => void remove()}>
             {busy ? "Removing…" : `Back up and remove ${picked?.size ?? 0}`}
           </button>
         </>

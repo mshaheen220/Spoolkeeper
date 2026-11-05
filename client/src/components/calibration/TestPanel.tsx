@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { HintText } from "./HintText";
 import { previewRun, saveRun, type Computed, type InputField, type TestInfo } from "../../api/calibration";
 
 type Values = Record<string, string>;
@@ -130,7 +131,9 @@ export function TestPanel({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-relaxed text-ink-300">{test.why}</p>
+      <div className="text-xs text-ink-400">
+        <HintText hint={{ title: "Why this test", detail: test.why }} />
+      </div>
 
       {test.orcaMenu.length > 0 && (
         <div className="space-y-2 rounded-md border border-ink-700 bg-ink-950/40 p-3">
@@ -152,9 +155,9 @@ export function TestPanel({
             </div>
           )}
           {test.orcaSets && (
-            <p className="text-xs leading-snug text-ink-400">
-              <span className="font-medium text-ink-300">OrcaSlicer sets for this test:</span> {test.orcaSets}
-            </p>
+            <div className="text-xs text-ink-400">
+              <HintText hint={{ title: "What OrcaSlicer sets for you", detail: `It sets ${test.orcaSets}` }} />
+            </div>
           )}
         </div>
       )}
@@ -173,16 +176,43 @@ export function TestPanel({
       {test.checks.length > 0 && (
         <ul aria-label="Check before slicing" className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 day:text-amber-900">
           {test.checks.map((c) => (
-            <li key={c}>⚠ {c}</li>
+            <li key={c.title} className="flex gap-1.5">
+              <span aria-hidden>⚠</span>
+              <HintText hint={c} />
+            </li>
           ))}
         </ul>
       )}
 
-      <ol className="list-decimal space-y-1 pl-5 text-sm text-ink-300">
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-ink-200">
         {test.instructions.map((s) => (
-          <li key={s}>{s}</li>
+          <li key={s.title}>
+            <HintText hint={s} />
+          </li>
         ))}
       </ol>
+
+      {test.watch && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              ["While it prints", test.watch.during],
+              ["Reading the result", test.watch.after],
+            ] as const
+          ).map(([title, items]) => (
+            <div key={title} className="rounded-md border border-ink-700 p-3">
+              <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">{title}</p>
+              <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-ink-200">
+                {items.map((w) => (
+                  <li key={w.title}>
+                    <HintText hint={w} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-3">
         <p className="text-xs font-semibold tracking-wide text-ink-400 uppercase">What you saw</p>

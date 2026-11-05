@@ -1,5 +1,6 @@
 import { config } from "../../config";
 import { getSources, getSpool, listProducts, listSpools, listSpoolsForProduct, type Product } from "../../db/repo";
+import { baselineFor } from "../calibration/baseline";
 import { calibratedSpoolForProduct, linearAdvanceStatus, tunedForSpool } from "../calibration/service";
 import { notFound } from "../http";
 import { readOrcaVersion } from "./appConfig";
@@ -14,8 +15,10 @@ export function buildForSpool(spoolId: number, scope: ProfileScope): BuiltProfil
   const own = tunedForSpool(spool.id);
   const tunedFromSpool = Object.keys(own).length || scope === "spool" ? spool.id : calibratedSpoolForProduct(spool.product.id, spool.id);
   const tuned = tunedFromSpool == null ? {} : tunedFromSpool === spool.id ? own : tunedForSpool(tunedFromSpool);
+  // Whatever isn't tuned yet comes from the material's baseline, if it has one.
+  const fromBaseline = Object.fromEntries(baselineFor(spool.product, tuned).values.map((v) => [v.key, v]));
   return buildProfile({
-    tuned,
+    tuned: { ...fromBaseline, ...tuned },
     tunedFromSpool,
     linearAdvance: linearAdvanceStatus(),
     orcaVersion: readOrcaVersion(config.orcaConfPath),

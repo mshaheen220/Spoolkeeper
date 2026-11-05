@@ -1,4 +1,5 @@
 import type { FieldSource, Product, Spool } from "../../db/repo";
+import type { BaselineValue } from "../calibration/baseline";
 import type { TunedValue } from "../calibration/service";
 import { KEY_REASON, type LinearAdvance } from "../calibration/tests";
 import type { Source } from "../schemas";
@@ -97,8 +98,8 @@ export function buildProfile(opts: {
   scope: ProfileScope;
   /** Spool prices to average for a per-product profile. */
   productSpoolPrices?: number[];
-  /** Calibration results to write (latest accepted value per key). */
-  tuned?: Record<string, TunedValue>;
+  /** Calibration results to write (latest accepted value per key), including any taken from the material's baseline. */
+  tuned?: Record<string, TunedValue | BaselineValue>;
   tunedFromSpool?: number | null;
   linearAdvance?: LinearAdvance;
   /** Siblings and same-colored filaments, for a unique but short preset name. */
@@ -150,7 +151,15 @@ export function buildProfile(opts: {
   const tuned = opts.tuned ?? {};
   for (const t of Object.values(tuned).sort((a, b) => (a.key < b.key ? -1 : 1))) {
     if (opts.linearAdvance === "unsupported" && (t.key === "pressure_advance" || t.key === "enable_pressure_advance")) continue;
-    values.push({ key: t.key, value: t.value, source: "calibration", sourceRef: `run #${t.runId} (${t.date.slice(0, 10)})`, why: KEY_REASON[t.key] ?? `From calibration (${t.test}).` });
+    const why = KEY_REASON[t.key] ?? `From calibration (${t.test}).`;
+    const b = "baseline" in t ? t.baseline : null;
+    values.push({
+      key: t.key,
+      value: t.value,
+      source: "calibration",
+      sourceRef: `${b ? `${b.material} baseline, ` : ""}run #${t.runId} (${t.date.slice(0, 10)})`,
+      why: b ? `${b.material} baseline (${b.name}): ${why[0].toLowerCase()}${why.slice(1)}` : why,
+    });
   }
   // A K value does nothing without Linear Advance in the firmware - say so explicitly instead of leaving it to the base.
   if (opts.linearAdvance === "unsupported")
@@ -219,7 +228,7 @@ export function buildProfile(opts: {
     orcaVersion: opts.orcaVersion ?? null,
     values,
     pending,
-    tunedFromSpool: Object.keys(tuned).length ? (opts.tunedFromSpool ?? spool.id) : null,
+    tunedFromSpool: Object.values(tuned).some((t) => !("baseline" in t)) ? (opts.tunedFromSpool ?? spool.id) : null,
     json: sorted,
     info,
   };

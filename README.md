@@ -51,7 +51,7 @@ server/                 Express + TypeScript, better-sqlite3, zod
   src/db/               migrations (PRAGMA user_version), repo (all SQL)
   src/lib/enrich/       ofd, spoolmandb, spoolz, productPage, fetch (cache), text (matching)
   src/lib/orca/         userProfiles (import parser), profile (preset builder), bases
-  src/lib/calibration/  tests (dialog defaults, block lists, formulas - each cited to OrcaSlicer 2.4.2 source), service (runs, tuned values)
+  src/lib/calibration/  tests (dialog defaults, block lists, formulas - each cited to OrcaSlicer 2.4.2 source), service (runs, tuned values), baseline (a material's baseline spool filling untuned values; settings key `calibrationBaselines`)
   src/routes/           health, tips, inventory, enrich, orcaImport, profile, settings
 data/                   spoolkeeper.db (git-ignored; mounted at /data in Docker)
 ```
@@ -108,11 +108,14 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 | `GET /publish[?scope=spool\|product]` | Every spool's (or filament's) preset compared with OrcaSlicer's folder: `state` (`new\|changes\|current\|blocked`) and key-level `changes`, plus whether the folder is writable |
 | `GET /publish/spools/:id[?scope=…]` | One preset's plan |
 | `POST /publish { items: [{ spoolId, scope, overwrite? }] }` | Write presets. Hand-tuned keys are kept unless listed in `overwrite`; replaced files go to `data/backups/publish-<stamp>/` |
-| `GET /publish/legacy`, `POST /publish/legacy/remove { files }` | spoolman2slicer presets (with whether each is replaced yet); back up and delete |
+| `GET /publish/strays`, `POST /publish/strays/remove { files }` | Every user filament preset that isn't a current Spoolkeeper one (spoolman2slicer's, your own, stale Spoolkeeper ones), with whether each filament is replaced yet and what inherits from it; back up to `data/backups/cleanup-<stamp>/` and delete |
 | `GET /spools/:id/calibration` | Wizard state: tests with OrcaSlicer dialog values suggested for this filament, run history, tuned values, base-profile defaults, sibling spools' values |
 | `POST /spools/:id/calibration/preview` `{ test, params, observation }` | Compute a result and its formula without saving |
 | `POST /spools/:id/calibration/runs` | Save a run (validated, computed server-side) |
 | `PATCH /calibration/runs/:id { accepted }` | Stop or resume using a run; runs are never deleted |
+| `GET /calibration/baselines` | Each material's baseline spool and what it gives every active filament of that material |
+| `PUT /spools/:id/calibration/baseline { use }` | Make this spool its material's baseline (or stop) |
+| `PUT /products/:id/calibration/baseline { use: true\|false\|null }` | Always / never / by finish use the baseline for a filament |
 | `GET /settings`, `PUT /settings { printerProfile, linearAdvance }`, `POST /settings/esteps` | Settings, Linear Advance status, E-steps check |
 | `GET /labels?ids=1,2,3` | Label contents (brand, material, finishes, color, nozzle/bed - tuned or maker range - and QR URL), plus label size and QR base address from Settings |
 | `GET /orca/printers` | Printer presets in the mounted OrcaSlicer folder (exact `name` fields), for the Settings dropdown |
@@ -123,13 +126,14 @@ All JSON under `/api`. Everything except `/api/tips` is CORS-locked to `CLIENT_O
 - **Merge, don't replace.** The new file starts from the current one, so keys Spoolkeeper doesn't set (anything added in OrcaSlicer) survive. Keys it wrote before but no longer sets are removed, unless they were edited since.
 - **Hand-tune guard.** `published_profiles.written` (migration 8) stores exactly what was written per key. A file value that differs from it was edited in OrcaSlicer; it's kept, keeping its old baseline so it stays flagged, unless the request lists it in `overwrite`.
 - **Backups and idempotency.** Replaced or removed files are copied to `data/backups/` first. Identical content isn't rewritten. Writes go to a temp file and are then renamed.
+- **Cleanup.** `listStrays` lists every user preset that isn't current: spoolman2slicer's, untagged ones, and tagged ones whose spool is archived or whose filament was last published in the other scope. `removeStrays` accepts only those, and refuses a preset another remaining one `inherits`. Publishing in one scope takes over the same filament's same-named preset from the other scope, and drops its `published_profiles` record.
 - **No running check.** A container can't see host processes, and OrcaSlicer only reads presets at startup and only writes them when you save, so the UI just says to restart it.
 
 ### OrcaSlicer preset format
 
 Verified against OrcaSlicer 2.4.2's own user presets:
 
-- **File and name.** The file name is the preset name, `Brand - Color` like the rest of OrcaSlicer's list (`Sunlu - Walnut.json`). Only when needed to keep names unique (`profileName` in `lib/orca/profile.ts`): the material for a same-colored non-PLA (`Sunlu - Black PETG`), the line for two of the same material (`Make Market - Glitter White`), and `(Spool #ID)` for a per-spool preset of a filament with several active spools. A same-named spoolman2slicer preset is replaced (backed up). One you made yourself blocks the publish unless the request sets `replace`.
+- **File and name.** The file name is the preset name, `Brand - Color` like the rest of OrcaSlicer's list (`Sunlu - Walnut.json`). Only when needed to keep names unique (`profileName` in `lib/orca/profile.ts`): the material for a same-colored non-PLA (`Sunlu - Black PETG`), the line for two of the same material (`Make Market - Glitter White`), and `(Spool #ID)` for a per-spool preset of a filament with several active spools. A same-named spoolman2slicer preset is replaced (backed up), as is the same filament's preset from the other scope. One you made yourself blocks the publish unless the request sets `replace`.
 - **Values.** Each one is a single-element string array. Keys are sorted, with 4-space indent.
 - **`inherits`.** The material's Creality generic (`Creality Generic PLA`/`PETG`/`TPU`/`ABS`/`ASA`/`PLA-CF`), or OrcaFilamentLibrary's `Generic X @System`; see `server/src/lib/orca/bases.ts`.
 - **`compatible_printers`.** `[]` with an empty `compatible_printers_condition`, which means compatible with every printer (`Preset.cpp` `is_compatible_with_printer`, OrcaSlicer 2.4.2). Filament isn't machine-specific. Each calibration run records the printer preset and nozzle it was measured on (`calibration_runs.printer_profile` / `nozzle_diameter`, from Settings' "Printer you calibrate on"), and the profile notes list them as "Tuned on …".

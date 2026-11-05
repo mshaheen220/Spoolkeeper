@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { fetchCalibration, setRunAccepted, type CalibrationRun, type CalibrationState, type StepId, type TestInfo } from "../api/calibration";
+import { BaselineCard } from "../components/calibration/BaselineCard";
+import { CopyCalibration } from "../components/calibration/CopyCalibration";
+import { HintText } from "../components/calibration/HintText";
 import { TestPanel } from "../components/calibration/TestPanel";
 import { Swatch } from "../components/Swatch";
 import { useAsync } from "../hooks/useAsync";
@@ -38,6 +41,15 @@ function History({ runs, onChange }: { runs: CalibrationRun[]; onChange: () => v
               <span className="font-medium">
                 {date(r.createdAt)} · run #{r.id}
                 {r.printerProfile && <span className="font-normal text-ink-400"> · {r.printerProfile.replace(/\s+/g, " ")}</span>}
+                {r.copiedFrom && (
+                  <span className="font-normal text-accent-400">
+                    {" "}
+                    · copied from{" "}
+                    <Link to={`/spools/${r.copiedFrom.spoolId}/calibrate`} className="underline">
+                      {r.copiedFrom.name}
+                    </Link>
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -97,9 +109,8 @@ function FlowStep({ data, reload, onPass1Saved, onDone }: { data: CalibrationSta
             <h3 className="font-semibold">Pass 2 (fine)</h3>
             {pass1Flow ? (
               <>
-                <p className="my-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-200 day:text-amber-900">
-                  Before printing Pass 2, set this filament's <span className="font-medium">Flow ratio</span> in OrcaSlicer to{" "}
-                  <span className="font-mono font-semibold">{pass1Flow}</span> (Pass 1's result) and save the profile — Pass 2 builds on it.
+                <p className="my-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm font-medium text-amber-200 day:text-amber-900">
+                  ⚠ First set the filament's Flow ratio to <span className="font-mono font-semibold">{pass1Flow}</span> in OrcaSlicer and save
                 </p>
                 <TestPanel
                   key={`flow2-${pass1!.id}`}
@@ -145,7 +156,9 @@ export function CalibratePage() {
   const p = data.product;
   const testFor = (step: StepId) => data.tests.find((t) => t.step === step) as TestInfo;
   // First unfinished, non-optional, non-skipped step opens by default.
-  const firstTodo = STEPS.find((s) => s.doneKey && !data.tuned[s.doneKey] && !testFor(s.id).skipped)?.id ?? null;
+  // A baseline value counts as done here: testing is optional once one stands in.
+  const covered = (key: string) => !!data.tuned[key] || data.baseline.values.some((v) => v.key === key);
+  const firstTodo = STEPS.find((s) => s.doneKey && !covered(s.doneKey) && !testFor(s.id).skipped)?.id ?? null;
   const current = open === null ? firstTodo : open;
 
   return (
@@ -181,14 +194,13 @@ export function CalibratePage() {
       )}
 
       <details className="card px-4 py-3" open={data.runs.length === 0}>
-        <summary className="cursor-pointer font-medium">Before any test print: preset settings to check</summary>
-        <p className="mt-2 text-sm text-ink-400">
-          The tests run on your real presets. OrcaSlicer sets walls, infill and layer height for each test, but not these. If one is on in the presets you
-          print with every day and shouldn't be, fix it there too.
-        </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-300">
+        <summary className="cursor-pointer font-medium">Before any test: check your presets</summary>
+        <p className="mt-1 text-xs text-ink-400">OrcaSlicer won't set these for you. If one is wrong in your everyday presets, fix it there too.</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-200">
           {data.setupChecks.map((c) => (
-            <li key={c}>{c}</li>
+            <li key={c.title}>
+              <HintText hint={c} />
+            </li>
           ))}
         </ul>
       </details>
@@ -198,13 +210,16 @@ export function CalibratePage() {
           const test = testFor(s.id);
           const tunedValue = s.doneKey ? data.tuned[s.doneKey] : undefined;
           const coolingDone = s.id === "cooling" && data.runs.some((r) => r.test === "cooling" && r.accepted);
+          const fromBaseline = s.doneKey ? data.baseline.values.find((v) => v.key === s.doneKey) : undefined;
           const status = test.skipped
             ? { text: "Skipped — firmware has no Linear Advance", cls: "text-ink-500" }
             : tunedValue
               ? { text: `✓ ${tunedValue.value}${s.unit ? ` ${s.unit}` : ""} · ${date(tunedValue.date)}`, cls: "text-emerald-400 day:text-emerald-700" }
               : coolingDone
                 ? { text: "✓ recorded", cls: "text-emerald-400 day:text-emerald-700" }
-                : { text: test.optional ? "Optional" : "To do", cls: "text-ink-400" };
+                : fromBaseline
+                  ? { text: `${fromBaseline.value}${s.unit ? ` ${s.unit}` : ""} from the ${data.baseline.material} baseline · test to refine`, cls: "text-sky-400 day:text-sky-700" }
+                  : { text: test.optional ? "Optional" : "To do", cls: "text-ink-400" };
           const isOpen = current === s.id;
           return (
             <li key={s.id} className={`card p-0 ${isOpen ? "border-accent-500/60" : ""}`}>
@@ -260,6 +275,15 @@ export function CalibratePage() {
           );
         })}
       </ol>
+
+      <BaselineCard data={data} onChange={reload} />
+
+      <CopyCalibration
+        key={data.runs.filter((r) => r.accepted).length}
+        data={data}
+        steps={STEPS.map(({ id, title }) => ({ id, title }))}
+        onCopied={reload}
+      />
 
       <p className="text-sm text-ink-400">
         Results go straight into this spool's{" "}

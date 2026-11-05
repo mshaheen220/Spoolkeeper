@@ -60,8 +60,8 @@ describe("calibration math", () => {
   });
 
   it("Pass 2 starts from Pass 1's result", () => {
-    expect(getTest("flow2").suggestParams(ctx({ lastPass1Flow: 1.029 }))).toEqual({ testType: "Pass 2 (Fine)", oldFlow: 1.029 });
-    expect(getTest("flow1").suggestParams(ctx())).toEqual({ testType: "Pass 1 (Coarse)", oldFlow: 0.98 }); // Creality Generic PLA's flow
+    expect(getTest("flow2").suggestParams(ctx({ lastPass1Flow: 1.029 }))).toEqual({ testType: "Pass 2 (Fine)", topPattern: "Monotonic", oldFlow: 1.029 });
+    expect(getTest("flow1").suggestParams(ctx())).toEqual({ testType: "Pass 1 (Coarse)", topPattern: "Monotonic", oldFlow: 0.98 }); // Creality Generic PLA's flow
   });
 
   it("retraction: start + floor(height − 0.4) × step, plus recorded z-hop and wipe", () => {
@@ -189,6 +189,79 @@ describe("calibration API and profile", () => {
     expect(own.body.orca.json.nozzle_temperature).toBeUndefined();
     const wizard = await request(app).get(`/api/spools/${b}/calibration`).expect(200);
     expect(wizard.body.siblings[0]).toMatchObject({ spoolId: a });
+  });
+
+  it("copies results to other filaments of the same brand and material", async () => {
+    const make = async (product: Record<string, unknown>) =>
+      (await request(app).post("/api/spools").send({ product: { vendor: "Sunlu", material: "PETG", ...product }, quantity: 1 }).expect(201)).body.spools[0].id as number;
+    const white = await make({ colorName: "White" });
+    const orange = await make({ colorName: "Orange" });
+    await make({ colorName: "Clear", finishes: ["Translucent"] });
+    await make({ material: "PLA", colorName: "Black" });
+
+    await request(app).post(`/api/spools/${white}/calibration/runs`).send({ test: "temp", params: { start: 260, end: 230 }, observation: { best: 240 } }).expect(201);
+    await request(app).post(`/api/spools/${white}/calibration/runs`).send({ test: "flow1", params: { oldFlow: 0.95 }, observation: { modifier: 5 } }).expect(201);
+    await request(app).post(`/api/spools/${white}/calibration/runs`).send({ test: "flow2", params: { oldFlow: 0.9975 }, observation: { modifier: -2 } }).expect(201);
+
+    const targets = (await request(app).get(`/api/spools/${white}/calibration`).expect(200)).body.copyTargets;
+    expect(targets.map((t: { displayName: string; differences: string[] }) => [t.displayName.includes("Orange"), t.differences])).toEqual([
+      [true, []],
+      [false, ["Translucent"]],
+    ]);
+    const orangeProduct = targets[0].productId;
+
+    const res = await request(app).post(`/api/spools/${white}/calibration/copy`).send({ productIds: [orangeProduct], steps: ["temp", "flow"] }).expect(200);
+    expect(res.body.copied).toEqual([{ productId: orangeProduct, spoolId: orange, runs: 3 }]);
+    const copied = (await request(app).get(`/api/spools/${orange}/calibration`).expect(200)).body;
+    expect(copied.tuned.nozzle_temperature.value).toBe("240");
+    expect(copied.tuned.filament_flow_ratio.value).toBe("0.9776"); // Pass 2 still wins over Pass 1
+    expect(copied.runs[0].copiedFrom).toMatchObject({ spoolId: white, name: expect.stringContaining("White") });
+
+    // Copying again adds nothing; another material is refused.
+    const again = await request(app).post(`/api/spools/${white}/calibration/copy`).send({ productIds: [orangeProduct], steps: ["temp", "flow"] }).expect(200);
+    expect(again.body.copied[0].runs).toBe(0);
+    await request(app).post(`/api/spools/${white}/calibration/copy`).send({ productIds: [9999], steps: ["temp"] }).expect(400);
+  });
+
+  it("fills untuned values of a material from its baseline spool, leaving specialty finishes and out-of-range temperatures alone", async () => {
+    const make = async (product: Record<string, unknown>) =>
+      (await request(app).post("/api/spools").send({ product: { material: "PLA", ...product }, quantity: 1 }).expect(201)).body.spools[0].id as number;
+    const blue = await make({ vendor: "Deeplee", colorName: "Blue" });
+    const black = await make({ vendor: "Sunlu", colorName: "Black", nozzleMin: 200, nozzleMax: 240 });
+    const yellow = await make({ vendor: "Other", colorName: "Yellow", nozzleMin: 220, nozzleMax: 230 });
+    const wood = await make({ vendor: "Sunlu", line: "Wood", colorName: "Walnut", finishes: ["Wood Fill"] });
+    const petg = await make({ vendor: "Sunlu", material: "PETG", colorName: "White" });
+    const json = async (id: number) => (await request(app).get(`/api/spools/${id}/profile`).expect(200)).body.orca.json;
+
+    await request(app).post(`/api/spools/${blue}/calibration/runs`).send({ test: "temp", params: { start: 230, end: 190 }, observation: { best: 210 } }).expect(201);
+    await request(app).post(`/api/spools/${blue}/calibration/runs`).send({ test: "flow1", params: { oldFlow: 0.98 }, observation: { modifier: 0 } }).expect(201);
+    await request(app).put(`/api/spools/${black}/calibration/baseline`).send({ use: true }).expect(400); // nothing to share yet
+    await request(app).put(`/api/spools/${blue}/calibration/baseline`).send({ use: true }).expect(200);
+
+    const profile = (await request(app).get(`/api/spools/${black}/profile`).expect(200)).body;
+    expect(profile.orca.json).toMatchObject({ nozzle_temperature: ["210"], filament_flow_ratio: ["0.98"] });
+    expect(profile.values.find((v: { key: string }) => v.key === "nozzle_temperature").why).toMatch(/^PLA baseline \(Deeplee/);
+    expect(profile.tunedFromSpool).toBeNull();
+
+    // 210 °C is below Yellow's 220–230 range: flow carries over, temperature doesn't.
+    expect(await json(yellow)).toMatchObject({ filament_flow_ratio: ["0.98"] });
+    expect((await json(yellow)).nozzle_temperature).toBeUndefined();
+    expect((await json(wood)).filament_flow_ratio).toBeUndefined();
+    expect((await json(petg)).filament_flow_ratio).toBeUndefined();
+
+    // Its own result wins; overriding brings the wood filament in.
+    await request(app).post(`/api/spools/${black}/calibration/runs`).send({ test: "temp", params: { start: 230, end: 190 }, observation: { best: 220 } }).expect(201);
+    expect(await json(black)).toMatchObject({ nozzle_temperature: ["220"], filament_flow_ratio: ["0.98"] });
+    const woodProduct = (await request(app).get(`/api/spools/${wood}/calibration`).expect(200)).body.product.id;
+    await request(app).put(`/api/products/${woodProduct}/calibration/baseline`).send({ use: true }).expect(200);
+    expect(await json(wood)).toMatchObject({ filament_flow_ratio: ["0.98"] });
+
+    const { baselines } = (await request(app).get("/api/calibration/baselines").expect(200)).body;
+    expect(baselines).toHaveLength(1);
+    expect(baselines[0].filaments.map((f: { displayName: string; used: boolean }) => f.used)).toEqual([true, true, true]);
+
+    await request(app).put(`/api/spools/${blue}/calibration/baseline`).send({ use: false }).expect(200);
+    expect((await json(yellow)).filament_flow_ratio).toBeUndefined();
   });
 
   it("computes an E-steps correction", async () => {

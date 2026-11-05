@@ -44,6 +44,14 @@ export interface Computed {
   warnings: string[];
 }
 
+/** A short action headline, with the explanation kept out of the way until asked for. */
+export interface Hint {
+  title: string;
+  detail?: string;
+}
+
+const hint = (title: string, detail?: string): Hint => (detail ? { title, detail } : { title });
+
 export interface TestContext {
   product: Product;
   /** Current tuned values for this spool (OrcaSlicer key -> value), before this run. */
@@ -66,11 +74,13 @@ export interface PrinterRetraction {
   wipeDistance: number | null;
 }
 
+export type StepId = "temp" | "mvs" | "pa" | "flow" | "retraction" | "cooling";
+
 export interface TestDef {
   id: TestId;
   title: string;
   /** Wizard grouping: flow1/flow2/flow_yolo are alternatives within one step. */
-  step: "temp" | "mvs" | "pa" | "flow" | "retraction" | "cooling";
+  step: StepId;
   optional?: boolean;
   why: string;
   /** Where to find it in OrcaSlicer's menu bar and what to pick. */
@@ -78,8 +88,10 @@ export interface TestDef {
   /** What OrcaSlicer forces for this test (Plater.cpp calib_*), so the presets' values don't matter there. */
   orcaSets?: string;
   /** Preset settings OrcaSlicer leaves alone that can spoil this particular test. */
-  checks?: string[];
-  instructions: string[];
+  checks?: Hint[];
+  instructions: Hint[];
+  /** What to look and listen for while it prints, and how to read the finished test. */
+  watch?: { during: Hint[]; after: Hint[] };
   params: InputField[];
   observation: InputField[];
   suggestParams(ctx: TestContext): Record<string, string | number | boolean>;
@@ -169,13 +181,16 @@ function flowWarnings(newFlow: number): string[] {
  * of them touch supports, raft, fuzzy skin or the process flow ratio, and
  * they leave their own edits in the presets as unsaved changes.
  */
-export const SETUP_CHECKS = [
-  "Supports and raft off (process › Support: Enable support off, Raft layers 0). No test turns them off, and supports fill in the bridges, overhangs and gaps you're judging.",
-  "Fuzzy skin off (process › Others). It roughens the walls and top surfaces the tests are read from.",
-  "The process Flow ratio at 1 (process › Quality). It multiplies everything on top of the filament's flow ratio; only the flow test overrides it.",
-  "Brim: leave it as your process has it. The temperature and max volumetric speed tests add their own 5 mm brim, and a brim doesn't change the flow or retraction results.",
-  "When OrcaSlicer opens a test and says presets are modified, choose to discard them, so edits left over from the last test don't carry into this one.",
-  "Don't save presets after a test. OrcaSlicer edits them to run it (starting temperature, max volumetric speed 200, layer heights) and saving would keep those edits. Spoolkeeper publishes the results itself. The one exception: the flow ratio before Pass 2.",
+export const SETUP_CHECKS: Hint[] = [
+  hint("Supports and raft off", "Process › Support: Enable support off, Raft layers 0. No test turns them off, and supports fill in the bridges, overhangs and gaps you're judging."),
+  hint("Fuzzy skin off", "Process › Others. It roughens the walls and top surfaces the tests are read from."),
+  hint("Process flow ratio at 1", "Process › Quality. It multiplies on top of the filament's flow ratio; only the flow test overrides it."),
+  hint("Brim: leave as is", "The temperature and speed tests add their own 5 mm brim, and a brim doesn't change the flow or retraction results."),
+  hint("Discard modified presets when a test opens", "OrcaSlicer asks as it opens a test. Discarding stops edits left over from the last test carrying into this one."),
+  hint(
+    "Don't save presets after a test",
+    "OrcaSlicer edits them to run the test (starting temperature, max volumetric speed 200, layer heights) and saving would keep those. Spoolkeeper publishes the results itself. The one exception: the flow ratio before Pass 2.",
+  ),
 ];
 
 // ------------------------------------------------------------- tests
@@ -187,13 +202,28 @@ const temp: TestDef = {
   why: "Temperature sets how runny the plastic is, so every later test depends on it. Too cold: weak layers and under-extrusion. Too hot: stringing, sagging overhangs and blobs.",
   orcaMenu: ["Calibration", "Temperature"],
   orcaSets: "a 5 mm brim, the layer height, and the filament profile's nozzle temperature (set to the start temperature; don't save it).",
-  checks: ["Supports off matters most here: the bridges and overhangs on every block are what you're comparing."],
+  checks: [hint("Supports off", "The bridges and overhangs on every block are what you're comparing.")],
   instructions: [
-    "Select this filament's profile (and your normal process) in OrcaSlicer first.",
-    "In the dialog choose the filament type and the start/end temperatures below; the step is fixed at 5 °C.",
-    "Slice and print. The tower starts hottest at the bottom and gets 5 °C cooler every 10 mm block; each block is labelled with its temperature.",
-    "Pick the block with the best balance: clean bridges and overhangs, little stringing, strong layers (try snapping the top off). If several look equally good, take the middle one.",
+    hint("Select this filament and your normal process"),
+    hint("Dialog: filament type and start/end temps below", "The step is fixed at 5 °C."),
+    hint("Slice and print", "The tower starts hottest at the bottom and gets 5 °C cooler every 10 mm block; each block is labelled with its temperature."),
+    hint("Enter the best block's temperature", "Use the checks under Reading the result. If several look equally good, take the middle one."),
   ],
+  watch: {
+    during: [
+      hint("Bridges should go down tight and straight", "Strands that droop or curl up mean that block is too hot."),
+      hint("Clicking on the cool blocks = too cold", "The extruder can't push filament that cold at this speed. Note which block."),
+    ],
+    after: [
+      hint("Let it cool fully"),
+      hint("Stringing: hotter blocks string more", "Some is fine; the retraction step deals with it later."),
+      hint("Bridges: sagging = too hot", "Look underneath each block."),
+      hint("Overhangs: curled or rough = too hot"),
+      hint("Surface: dull and rough = too cold", "Too hot looks blobby or glossy, with soft detail."),
+      hint("Snap the cooler blocks", "If one breaks cleanly along a layer with little effort, it's too cold for strong parts."),
+      hint("Torn between two? Pick the stronger", "Stringing and bridging can be tuned with retraction and cooling; weak layers can't."),
+    ],
+  },
   params: [
     { key: "dialogType", label: "Filament type (in the dialog)", type: "text", readOnly: true },
     { key: "start", label: "Start temp", type: "number", unit: "°C", step: 5 },
@@ -252,10 +282,29 @@ const mvs: TestDef = {
   orcaSets:
     "vase mode, one wall, no infill or top/bottom layers, a brim, layer height and line width. In the filament profile it raises max volumetric speed to 200 and turns off slowing down for layer time; don't save those.",
   instructions: [
-    "Set the nozzle temperature found in the temperature step first.",
-    "Enter the start, end and step below in the dialog, then slice and print the vase-mode test.",
-    "Find where the walls first turn rough, gappy or change sheen (glossy to matte), and measure that height from the bed with calipers.",
+    hint("Set the nozzle temperature from step 1", "In the filament profile, before opening the test."),
+    hint("Dialog: start, end and step below"),
+    hint("Slice and print"),
+    hint("Measure the height of the first change", "With calipers, from the very bottom of the print. See Reading the result."),
   ],
+  watch: {
+    during: [
+      hint("Speed rises with height", "Every millimetre adds one step (0.5 mm³/s with the defaults); the top is the hardest."),
+      hint("Thin or broken lines = past the limit", "The hotend can't melt the filament fast enough."),
+      hint("Clicking = past the limit", "The extruder gear is slipping. Note the Z height on the printer's screen."),
+      hint("Stop once it's clearly failing", "After a few millimetres of obvious defects or clicking, everything above is faster still. Let it cool on the bed before removing it."),
+    ],
+    after: [
+      hint("Side-light it and work up from the bottom"),
+      hint(
+        "Look for the first change",
+        "Usually in this order: the sheen changes (glossy to matte or satin; PETG often goes dull or slightly frosty), then a rougher texture or fine horizontal lines, then thin or see-through spots, then gaps.",
+      ),
+      hint("Squeeze the wall", "If it splits along the layers above some height, the layers stopped bonding there; that counts as the limit too."),
+      hint("Unsure between two heights? Use the lower"),
+      hint("Clean to the top? Rerun with a higher range", "The limit is above this test's end value."),
+    ],
+  },
   params: [
     { key: "start", label: "Start volumetric speed", type: "number", unit: "mm³/s", step: 0.5 },
     { key: "end", label: "End volumetric speed", type: "number", unit: "mm³/s", step: 0.5 },
@@ -302,9 +351,9 @@ const pa: TestDef = {
   why: "Compensates for the pressure that builds in the nozzle, so corners stay sharp and line ends don't bulge. On Marlin this is Linear Advance, set with M900 K - but only if the firmware was built with it.",
   orcaMenu: ["Calibration", "Pressure advance"],
   instructions: [
-    "Choose the Tower method, Direct Drive extruder, and the start/end/step below.",
-    "Slice and print. K rises by one step every millimetre of height.",
-    "Find the height where the corners look sharpest (no bulge, no gap) and measure it.",
+    hint("Dialog: Tower, Direct Drive, and start/end/step below"),
+    hint("Slice and print", "K rises by one step every millimetre of height."),
+    hint("Measure the height with the sharpest corners", "No bulge and no gap at the corners."),
   ],
   params: [
     { key: "start", label: "Start PA", type: "number", step: 0.001 },
@@ -367,16 +416,45 @@ const oldFlowParam: InputField = {
   type: "number",
   step: 0.001,
   fromProfile: true,
-  help: "The dialog doesn't ask for it: the blocks are printed around the selected filament profile's Flow ratio (filament settings › Filament). Make sure it matches before printing.",
+  help: "Not in the dialog: the test uses the filament profile's Flow ratio. Make sure it matches.",
 };
 
-const flowPassParams: InputField[] = [{ key: "testType", label: "Calibration Test Type", type: "text", readOnly: true }, oldFlowParam];
-const DIALOG_DEFAULTS = "Leave Top Surface Pattern as it is.";
+// OrcaSlicer's flow wiki pairs Monotonic with the 2-pass test and Archimedean Chords with YOLO.
+const topPatternParam: InputField = { key: "topPattern", label: "Top Surface Pattern", type: "text", readOnly: true };
+const flowPassParams: InputField[] = [{ key: "testType", label: "Calibration Test Type", type: "text", readOnly: true }, topPatternParam, oldFlowParam];
 const FLOW_ORCA_SETS =
   "walls, 35% infill, top and bottom layers, layer height, top-surface speed, line width and flow, and ironing off - the blocks' flow modifiers override the process flow ratio too.";
 
-const FLOW_LOOK =
-  "Look at the top surfaces under raking light and run a fingertip over them: pick the smoothest one with no gaps between lines. Too little flow shows gaps; too much shows ridges and a rough edge.";
+const SELECT_FLOW_PROFILE = hint("Select this filament's profile", "Its flow ratio should match the one shown above.");
+const FLOW_LOOK = hint("Enter the smoothest block's modifier", "Use the checks under Reading the result.");
+
+const FLOW_WATCH_DURING = [
+    hint("Every block's first layer should stick flat", "A lifted block can't be judged."),
+    hint("Don't touch the tops until cool", "Warm tops scuff easily."),
+];
+const FLOW_READ = [
+  hint("Raking light and a fingertip", "Hold a light low and to one side, and run a fingertip over each top."),
+  hint("Gaps between lines = too little flow", "Also grooves, lines that don't touch, or infill showing through."),
+  hint("Ridges or a rough lip = too much flow", "Also plastic piled at the edges, and nozzle drag marks."),
+];
+const FLOW_PICK = hint("Several good? Pick the middle one", "A low-angle photo with one light can make the difference clearer.");
+
+/** Monotonic tops (Pass 1/2): judged on overall smoothness. */
+const FLOW_WATCH_MONOTONIC = {
+  during: FLOW_WATCH_DURING,
+  after: [...FLOW_READ, hint("Best: one even surface, crisp edges", "The lines fuse so you can barely feel them."), FLOW_PICK],
+};
+
+/** Archimedean Chords tops (YOLO): the centre spiral prints last, so extra flow piles up where it meets the outer arcs. */
+const FLOW_WATCH_CHORDS = {
+  during: FLOW_WATCH_DURING,
+  after: [
+    ...FLOW_READ,
+    hint("No gaps between the arcs"),
+    hint("Little or no ridge round the centre spiral", "The spiral prints last, inside-out, so too much flow builds up where it meets the outer arcs. A faint line is fine if going lower opens gaps."),
+    FLOW_PICK,
+  ],
+};
 
 const flow1: TestDef = {
   id: "flow1",
@@ -386,14 +464,15 @@ const flow1: TestDef = {
   orcaMenu: ["Calibration", "Flow ratio"],
   orcaSets: FLOW_ORCA_SETS,
   instructions: [
-    "Make sure this filament's profile is selected, with the flow ratio shown above.",
-    `In the dialog pick Pass 1 (Coarse). ${DIALOG_DEFAULTS}`,
-    "Slice and print the nine blocks; each is labelled with its modifier (−20 … +20).",
+    SELECT_FLOW_PROFILE,
+    hint("Dialog: Pass 1 (Coarse), Monotonic", "OrcaSlicer's guide pairs the Monotonic top pattern with Pass 1 and Pass 2."),
+    hint("Slice and print the nine blocks", "Each is labelled with its modifier (−20 … +20)."),
     FLOW_LOOK,
   ],
   params: flowPassParams,
   observation: [{ key: "modifier", label: "Best block's modifier", type: "select", options: opts(FLOW_PASS1) }],
-  suggestParams: (ctx) => ({ testType: "Pass 1 (Coarse)", oldFlow: currentFlow(ctx).value }),
+  suggestParams: (ctx) => ({ testType: "Pass 1 (Coarse)", topPattern: "Monotonic", oldFlow: currentFlow(ctx).value }),
+  watch: FLOW_WATCH_MONOTONIC,
   compute: flowCompute("flow1"),
 };
 
@@ -405,14 +484,15 @@ const flow2: TestDef = {
   orcaMenu: ["Calibration", "Flow ratio"],
   orcaSets: FLOW_ORCA_SETS,
   instructions: [
-    "First put Pass 1's result into the filament profile's flow ratio in OrcaSlicer and save the filament profile - Pass 2 builds on it. The Pass 1 test only edits the process preset, so the save holds just your flow change.",
-    `In the dialog pick Pass 2 (Fine). ${DIALOG_DEFAULTS}`,
-    "Slice and print the ten blocks (−9 … 0).",
+    hint("Put Pass 1's result in the filament profile and save it", "Pass 2 builds on it. The Pass 1 test only edits the process preset, so the save holds just your flow change."),
+    hint("Dialog: Pass 2 (Fine), Monotonic", "The same pattern as Pass 1, so the two passes compare."),
+    hint("Slice and print the ten blocks", "Labelled −9 … 0."),
     FLOW_LOOK,
   ],
   params: flowPassParams,
   observation: [{ key: "modifier", label: "Best block's modifier", type: "select", options: opts(FLOW_PASS2) }],
-  suggestParams: (ctx) => ({ testType: "Pass 2 (Fine)", oldFlow: ctx.lastPass1Flow ?? currentFlow(ctx).value }),
+  suggestParams: (ctx) => ({ testType: "Pass 2 (Fine)", topPattern: "Monotonic", oldFlow: ctx.lastPass1Flow ?? currentFlow(ctx).value }),
+  watch: FLOW_WATCH_MONOTONIC,
   compute: flowCompute("flow2"),
 };
 
@@ -423,12 +503,7 @@ const flowYolo: TestDef = {
   why: "OrcaSlicer's current recommended flow test: one print with eleven blocks, read straight off as ± modifiers.",
   orcaMenu: ["Calibration", "Flow ratio"],
   orcaSets: FLOW_ORCA_SETS,
-  instructions: [
-    "Make sure this filament's profile is selected, with the flow ratio shown above.",
-    `In the dialog pick the YOLO test type you chose above. ${DIALOG_DEFAULTS}`,
-    "Slice and print, then read the best block's modifier.",
-    FLOW_LOOK,
-  ],
+  instructions: [SELECT_FLOW_PROFILE, hint("Dialog: the YOLO type above, Archimedean Chords", "OrcaSlicer's guide pairs Archimedean Chords with YOLO."), hint("Slice and print"), FLOW_LOOK],
   params: [
     {
       key: "variant",
@@ -440,6 +515,7 @@ const flowYolo: TestDef = {
       ],
       help: "Recommended: ±0.05 in 0.01 steps. Perfectionist: −0.04 … +0.035 in 0.005 steps.",
     },
+    topPatternParam,
     oldFlowParam,
   ],
   observation: [
@@ -450,7 +526,8 @@ const flowYolo: TestDef = {
       options: [...new Set([...FLOW_YOLO, ...FLOW_YOLO_FINE])].sort((a, b) => a - b).map((v) => ({ value: String(v), label: signed(v) })),
     },
   ],
-  suggestParams: (ctx) => ({ oldFlow: currentFlow(ctx).value, variant: "recommended" }),
+  suggestParams: (ctx) => ({ oldFlow: currentFlow(ctx).value, variant: "recommended", topPattern: "Archimedean Chords" }),
+  watch: FLOW_WATCH_CHORDS,
   compute: flowCompute("flow_yolo"),
 };
 
@@ -462,15 +539,31 @@ const retraction: TestDef = {
   orcaMenu: ["Calibration", "Retraction"],
   orcaSets: "the retraction length on every layer (so the profile's length doesn't matter), firmware retraction off, two walls, no infill and the layer height.",
   checks: [
-    "Supports off matters most here: support between the two pillars would hide the strings.",
-    "Retraction speed, z-hop and wipe are not set by the test: they come from the printer profile, or from the filament profile's Setting Overrides where those are ticked. Make sure the values you record below are the ones the test printed with.",
+    hint("Supports off", "Support between the two pillars would hide the strings."),
+    hint(
+      "Check where speed, z-hop and wipe come from",
+      "The test doesn't set them: they come from the printer profile, or the filament profile's Setting Overrides where ticked. Record the values the test actually printed with.",
+    ),
   ],
   instructions: [
-    "Enter the start, end and step below (OrcaSlicer's defaults, made for direct drive).",
-    "Slice and print. Retraction rises by one step for every millimetre above the 0.4 mm base.",
-    "Find the lowest height where the stringing stops and measure it - or find that height's `Calib_Retraction_tower` comment in the G-code preview and enter its length directly.",
-    "Also record the speed, z-hop and wipe you want for this filament.",
+    hint("Dialog: start, end and step below", "OrcaSlicer's defaults, made for direct drive."),
+    hint("Slice and print", "Retraction rises one step per millimetre above the 0.4 mm base."),
+    hint("Enter the height where stringing stops", "Or the length from that height's Calib_Retraction_tower comment in the G-code preview."),
+    hint("Record the speed, z-hop and wipe you want"),
   ],
+  watch: {
+    during: [
+      hint("Strings should thin out as it climbs"),
+      hint("Clicking or grinding = too much", "Long retractions on a direct drive chew the filament. Note the height; it's an upper limit."),
+      hint("Stop once the gap is clearly clean", "A few millimetres past that point is enough."),
+    ],
+    after: [
+      hint("Dark background, light from the side", "Fine hairs between the pillars are strings."),
+      hint("Find the lowest clean height", "Wisps that brush off with a fingertip are minor; strings you have to pull off aren't."),
+      hint("Blobs or gaps on the pillars = too long"),
+      hint("Strings all the way up? Not a retraction problem", "Try a lower temperature or drying the filament; PETG especially strings when damp."),
+    ],
+  },
   params: [
     { key: "start", label: "Start retraction length", type: "number", unit: "mm", step: 0.1 },
     { key: "end", label: "End retraction length", type: "number", unit: "mm", step: 0.1 },
@@ -552,8 +645,8 @@ const cooling: TestDef = {
   why: "Notes from real prints rather than a test: fan speeds that kept overhangs clean without weakening layers, and bed temperatures that stuck on each side of your PEI plate.",
   orcaMenu: [],
   instructions: [
-    "No OrcaSlicer test for these - fill in what worked on real prints.",
-    "Smooth PEI usually wants a slightly lower bed temperature than textured PEI for the same grip.",
+    hint("Fill in what worked on real prints", "There's no OrcaSlicer test for these."),
+    hint("Smooth PEI usually runs a little cooler", "Than textured PEI, for the same grip."),
   ],
   params: [],
   observation: [

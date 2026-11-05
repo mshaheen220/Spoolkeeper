@@ -179,4 +179,8 @@ export const MIGRATIONS: string[] = [
     published_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
   `,
+
+  /* 9: calibration copied from another filament of the same brand and material - the run it came from */ `
+  ALTER TABLE calibration_runs ADD COLUMN copied_from_run INTEGER REFERENCES calibration_runs(id);
+  `,
 ];

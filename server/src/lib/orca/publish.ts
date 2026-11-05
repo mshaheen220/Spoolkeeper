@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../../config";
 import { getDb } from "../../db";
+import { listSpools } from "../../db/repo";
 import { HttpError } from "../http";
 import { profileJsonText, type BuiltProfile } from "./profile";
 
@@ -121,6 +122,10 @@ function getPublished(owner: string): PublishedRecord | null {
   return r ? toRecord(r) : null;
 }
 
+function forgetPublished(owner: string) {
+  getDb().prepare("DELETE FROM published_profiles WHERE owner = ?").run(owner);
+}
+
 function savePublished(rec: Omit<PublishedRecord, "publishedAt">) {
   getDb()
     .prepare(
@@ -167,12 +172,14 @@ export interface PublishPlan {
   /** Blocked only by a preset you made yourself - publishing with `replace` backs it up and takes its place. */
   replaceable?: boolean;
   /** An older preset with the same name that this one takes the place of (backed up first). */
-  replaces?: { fileName: string; kind: "spoolman2slicer" | "yours" };
+  replaces?: { fileName: string; kind: StrayKind; owner?: string };
   changes: KeyChange[];
   publishedAt: string | null;
 }
 
 const isLegacy = (f: OrcaFile) => Boolean(flat(f.json._comment)?.includes(LEGACY_MARK));
+const ownerScope = (owner: string) => (owner.startsWith("spool=") ? "spool" : "product");
+const ownerProduct = (owner: string) => Number(/product=(\d+)/.exec(owner)![1]);
 
 export function planPublish(
   built: BuiltProfile,
@@ -198,10 +205,14 @@ export function planPublish(
 
   // Same name as a preset Spoolkeeper doesn't own. spoolman2slicer's are
   // what Spoolkeeper retires, so they're replaced (after a backup); one you
-  // made yourself only with your say-so; another Spoolkeeper preset never.
+  // made yourself only with your say-so; the same filament's preset from the
+  // other scope (one per spool <-> one per filament) too, as it's the same
+  // filament; any other Spoolkeeper preset never.
   const foreign = atTarget && atTarget !== mine ? atTarget : null;
   let replaces: PublishPlan["replaces"];
-  if (foreign) {
+  const otherScope = foreign?.owner != null && ownerProduct(foreign.owner) === ids.productId && ownerScope(foreign.owner) !== built.scope;
+  if (foreign && otherScope) replaces = { fileName: foreign.fileName, kind: "spoolkeeper", owner: foreign.owner! };
+  else if (foreign) {
     if (foreign.owner)
       return {
         ...base,
@@ -369,35 +380,104 @@ export function applyPublish(
   }
   writeFile(target, text);
   writeFile(infoPathFor(target), info);
+  if (plan.replaces?.owner) forgetPublished(plan.replaces.owner);
 
   savePublished({ owner: plan.owner, scope: plan.scope, spoolId: plan.spoolId, productId: plan.productId, fileName: plan.fileName, written, contentHash: sha(text), backupDir });
   return { ...result, backupDir, action: plan.replaces ? "replaced" : !mine ? "created" : renamed ? "renamed" : "updated" };
 }
 
-// ---- spoolman2slicer leftovers ------------------------------------------------
+// ---- Cleanup ------------------------------------------------------------------
 
-export interface LegacyFile {
+/** spoolman2slicer's generated presets, ones you made yourself, and Spoolkeeper's own that are no longer current. */
+export type StrayKind = "spoolman2slicer" | "yours" | "spoolkeeper";
+
+export interface StrayFile {
   fileName: string;
   name: string;
+  kind: StrayKind;
+  /** Spoolkeeper's ownership tag, for its own presets. */
+  owner: string | null;
   inherits: string | null;
+  /** Why a Spoolkeeper preset is no longer current. */
+  reason: string | null;
+  /** The Spoolkeeper filament it belongs to, or was imported as. */
+  productId: number | null;
+  /** Other user presets built on this one: it can only go along with them. */
+  inheritedBy: string[];
+  /** Its main values, to recognize it by. */
+  values: Record<string, string>;
 }
 
-/** Presets spoolman2slicer generated - the ones that kept overwriting tuned settings. */
-export function listLegacy(files: OrcaFile[] = readUserFilaments()): LegacyFile[] {
-  return files
-    .filter(isLegacy)
-    .map((f) => ({ fileName: f.fileName, name: flat(f.json.name) ?? f.fileName.replace(/\.json$/, ""), inherits: flat(f.json.inherits) }));
+const SUMMARY_KEYS = ["nozzle_temperature", "filament_flow_ratio", "filament_max_volumetric_speed"];
+
+/**
+ * Every user filament preset that isn't one of Spoolkeeper's current
+ * presets. A Spoolkeeper preset stops being current when its spool is
+ * archived or deleted, or when the filament was last published in the other
+ * scope (one per spool <-> one per filament).
+ */
+export function listStrays(files: OrcaFile[] = readUserFilaments()): StrayFile[] {
+  const active = listSpools();
+  const activeSpools = new Set(active.map((s) => s.id));
+  const activeProducts = new Set(active.map((s) => s.product.id));
+  const fileNames = new Set(files.map((f) => f.fileName));
+  // The scope each filament was last published in, among presets still in the folder.
+  const lastScope = new Map<number, { scope: string; at: string }>();
+  for (const r of listPublished()) {
+    if (!fileNames.has(r.fileName)) continue;
+    const prev = lastScope.get(r.productId);
+    if (!prev || r.publishedAt > prev.at) lastScope.set(r.productId, { scope: r.scope, at: r.publishedAt });
+  }
+  const imported = new Map(
+    (getDb().prepare("SELECT file_name, product_id FROM imported_profiles").all() as { file_name: string; product_id: number }[]).map((r) => [r.file_name, r.product_id]),
+  );
+
+  const out: StrayFile[] = [];
+  for (const f of files) {
+    let reason: string | null = null;
+    if (f.owner) {
+      const productId = ownerProduct(f.owner);
+      const spoolId = /spool=(\d+)/.exec(f.owner)?.[1];
+      const scope = ownerScope(f.owner);
+      if (spoolId && !activeSpools.has(Number(spoolId))) reason = `Spool #${spoolId} is archived or deleted.`;
+      else if (!activeProducts.has(productId)) reason = "No spools of this filament are on the shelf.";
+      else if (lastScope.get(productId) && lastScope.get(productId)!.scope !== scope)
+        reason = `This filament is now published as ${scope === "spool" ? "one preset per filament" : "one preset per spool"}.`;
+      else continue;
+    }
+    const name = flat(f.json.name) ?? f.fileName.replace(/\.json$/, "");
+    out.push({
+      fileName: f.fileName,
+      name,
+      kind: f.owner ? "spoolkeeper" : isLegacy(f) ? "spoolman2slicer" : "yours",
+      owner: f.owner,
+      inherits: flat(f.json.inherits),
+      reason,
+      productId: f.owner ? ownerProduct(f.owner) : (imported.get(f.fileName) ?? null),
+      inheritedBy: files.filter((o) => o !== f && flat(o.json.inherits) === name).map((o) => o.fileName),
+      values: Object.fromEntries(SUMMARY_KEYS.map((k) => [k, flat(f.json[k])]).filter((e): e is [string, string] => e[1] != null && e[1] !== "nil")),
+    });
+  }
+  return out;
 }
 
-/** Back up, then delete, the chosen spoolman2slicer presets. Anything not generated by it is refused. */
-export function removeLegacy(fileNames: string[], backupDir: string, dir = filamentDir()): { removed: string[]; backupDir: string } {
-  const legacy = new Set(listLegacy(readUserFilaments(dir)).map((f) => f.fileName));
-  const bad = fileNames.filter((f) => !legacy.has(f));
-  if (bad.length) throw new HttpError(400, `Not a spoolman2slicer preset: ${bad.join(", ")}`);
+/**
+ * Back up, then delete, the chosen presets. Only ones listStrays offers are
+ * accepted, and none that a preset staying behind is built on.
+ */
+export function removeStrays(fileNames: string[], backupDir: string, dir = filamentDir()): { removed: string[]; backupDir: string } {
+  const strays = new Map(listStrays(readUserFilaments(dir)).map((f) => [f.fileName, f]));
+  const going = new Set(fileNames);
+  const bad = fileNames.filter((f) => !strays.has(f));
+  if (bad.length) throw new HttpError(400, `Not a preset that can be removed here: ${bad.join(", ")}`);
+  const needed = fileNames.filter((f) => strays.get(f)!.inheritedBy.some((child) => !going.has(child)));
+  if (needed.length) throw new HttpError(400, `Other presets are built on ${needed.join(", ")} - remove those too, or keep it`);
   for (const f of fileNames) backup(dir, f, backupDir);
   for (const f of fileNames) {
     fs.rmSync(path.join(dir, f), { force: true });
-    fs.rmSync(path.join(dir, f.replace(/\.json$/, ".info")), { force: true });
+    fs.rmSync(infoPathFor(path.join(dir, f)), { force: true });
+    const { owner } = strays.get(f)!;
+    if (owner) forgetPublished(owner);
   }
   return { removed: fileNames, backupDir };
 }
